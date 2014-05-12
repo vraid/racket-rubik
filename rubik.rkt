@@ -50,25 +50,24 @@
    (flcolor 0.0 0.0 1.0)
    (flcolor 1.0 1.0 1.0)))
 
+(define (rotation-matrix axis direction)
+  (let ([x (vector-ref axis 0)]
+        [y (vector-ref axis 1)]
+        [z (vector-ref axis 2)]
+        [d direction])
+    (vector (* x x) (- (* d z)) (* d y)
+            (* d z) (* y y) (- (* d x))
+            (- (* d y)) (* d x) (* z z))))
+
 (define face-orientations
   (list
+   (rotation-matrix (vector 1 1 1) 0)
+   (rotation-matrix (vector 0 1 0) 1)
+   (rotation-matrix (vector 1 0 0) -1)
+   (rotation-matrix (vector 0 1 0) -1)
+   (rotation-matrix (vector 1 0 0) 1)
    (vector 1 0 0
-           0 1 0
-           0 0 1)
-   (vector 0 0 1
-           0 1 0
-           1 0 0)
-   (vector 1 0 0
-           0 0 1
-           0 1 0)
-   (vector 0 0 -1
-           0 1 0
-           1 0 0)
-   (vector 1 0 0
-           0 0 -1
-           0 1 0)
-   (vector 1 0 0
-           0 1 0
+           0 -1 0
            0 0 -1)))
 
 (define edge-vertex-count 16)
@@ -181,24 +180,6 @@
      (build-side (flvector -1.0 0.0 0.0) side-angle three)
      (build-side (flvector3-normal (flvector 0.0 1.0 1.0)) top-angle four)))))
 
-(define edge-vertices
-  ((thunk
-    (define k (fl* 0.95 0.5))
-    (define -k (- k))
-    (define (interpolate n)
-      (fl* k (fl- (fl (* 2 (/ n edge-vertex-count))) 1.0)))
-    (apply vector-append
-           (map (curry build-vector edge-vertex-count)
-                (list
-                 (lambda (n)
-                   (flvector (interpolate n) -k 0.0))
-                 (lambda (n)
-                   (flvector k (interpolate n) 0.0))
-                 (lambda (n)
-                   (flvector (- (interpolate n)) k 0.0))
-                 (lambda (n)
-                   (flvector -k (- (interpolate n)) 0.0))))))))
-
 (struct tile
   (color
    position
@@ -211,7 +192,13 @@
   (build-vector 9 (lambda (n)
                     (let* ([x (- (modulo n 3) 1)]
                            [y (- (floor (/ n 3)) 1)]
-                           [center (flvector (fl x) (fl y) 1.5)])
+                           [center (flvector (fl x) (fl y) 1.5)]
+                           [rotation (lambda (v a)
+                                       (vector-map (curry quaternion-vector-product
+                                                          (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* a tau)))
+                                                   v))]
+                           [rotated-edge (curry rotation edge-tile-vertices)]
+                           [rotated-corner (curry rotation corner-tile-vertices)])
                       (tile
                        #f
                        (vector x y 1)
@@ -221,28 +208,13 @@
                        (cond
                          [(= 0 x y) center-tile-vertices]
                          [(and (= -1 x) (= 0 y)) edge-tile-vertices]
-                         [(and (= 0 x) (= 1 y)) (vector-map (curry quaternion-vector-product
-                                                                   (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* 0.25 tau)))
-                                                            edge-tile-vertices)]
-                         [(and (= 1 x) (= 0 y)) (vector-map (curry quaternion-vector-product
-                                                                   (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* 0.5 tau)))
-                                                            edge-tile-vertices)]
-                         [(and (= 0 x) (= -1 y)) (vector-map (curry quaternion-vector-product
-                                                                    (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* 0.75 tau)))
-                                                             edge-tile-vertices)]
+                         [(and (= 0 x) (= 1 y)) (rotated-edge 0.25)]
+                         [(and (= 1 x) (= 0 y)) (rotated-edge 0.5)]
+                         [(and (= 0 x) (= -1 y)) (rotated-edge 0.75)]
                          [(= -1 x y) corner-tile-vertices]
-                         [(and (= -1 x) (= 1 y)) (vector-map (curry quaternion-vector-product
-                                                                    (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* 0.25 tau)))
-                                                             corner-tile-vertices)]
-                         [(and (= 1 x) (= 1 y)) (vector-map (curry quaternion-vector-product
-                                                                   (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* 0.5 tau)))
-                                                            corner-tile-vertices)]
-                         [(and (= 1 x) (= -1 y)) (vector-map (curry quaternion-vector-product
-                                                                    (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* 0.75 tau)))
-                                                             corner-tile-vertices)]
-                         [else (vector-map (lambda (a) (flvector 0.0 0.0 0.0))
-                                           (vector-map (compose flvector3-normal (curry flvector3-sum center))
-                                                       edge-vertices))]))))))
+                         [(and (= -1 x) (= 1 y)) (rotated-corner 0.25)]
+                         [(and (= 1 x) (= 1 y)) (rotated-corner 0.5)]
+                         [(and (= 1 x) (= -1 y)) (rotated-corner 0.75)]))))))
 
 (define (matrix-row m n)
   (let ([n (* 3 n)])
@@ -264,6 +236,9 @@
                           v)))])
     (build-vector 3 m)))
 
+(define (vector-product u v)
+  (vector-map * u v))
+
 (define tiles
   (apply vector-append
          (map (lambda (n color orientation)
@@ -283,6 +258,30 @@
               (range 6)
               rubik-colors
               face-orientations)))
+
+(define (color-of position normal)
+  (define (find n)
+    (let ([t (vector-ref tiles n)])
+      (if (and (equal? normal (tile-normal t))
+               (equal? position (tile-position t)))
+          (tile-color t)
+          (find (+ n 1)))))
+  (find 0))
+
+(define (spin tiles axis in-spin? rotate)
+  (vector-map (lambda (t)
+                (if (not (in-spin? t))
+                    t
+                    (let ([position (tile-position t)]
+                          [normal (tile-normal t)])
+                      (tile
+                       (color-of (rotate position) (rotate normal))
+                       position
+                       normal
+                       (tile-rotation t)
+                       (tile-center-vertex t)
+                       (tile-edge-vertices t)))))
+              tiles))
 
 (define (->gl-vertex coord color)
   (make-gl-vertex
@@ -340,9 +339,9 @@
        [label "rubik"]
        [width window-width]
        [height window-height]
-;       [style '(no-resize-border
-;                no-caption
-;                no-system-menu)]
+       ;       [style '(no-resize-border
+       ;                no-caption
+       ;                no-system-menu)]
        ))
 
 (define (screen-to-viewport v)
@@ -350,22 +349,18 @@
    (fl* (fl (/ (- (vector-ref v 0) (/ display-width 2)) display-width scale)) (exact->inexact (/ display-width display-height)))
    (fl (/ (- (vector-ref v 1) (/ display-height 2)) display-height scale))))
 
+(define (closest-tile event)
+  (let ([v (mouse-to-sphere event)])
+    (argmin (lambda (t)
+              (flvector3-distance-squared (matrix3-vector3* (tile-rotation t) v) (tile-center-vertex t)))
+            (vector->list tiles))))
+
 (define (mouse-to-sphere event)
   (quaternion-vector-product
    (quaternion-inverse (rotation))
    (inverse-stereographic-projection
     (screen-to-viewport (vector (send event get-x)
                                 (send event get-y))))))
-
-(define (closest-tile v)
-  (let ([distance (build-flvector (* 9 6) (lambda (n) (flvector3-distance-squared v (tile-center-vertex (vector-ref tiles n)))))])
-    (foldl (lambda (n closest)
-             (if (< (flvector-ref distance n)
-                    (flvector-ref distance closest))
-                 n
-                 closest))
-           0
-           (range (vector-length tiles)))))
 
 (define canvas
   (new
@@ -434,6 +429,15 @@
      (define (on-mouse-up event)
        (set! mouse-button #f))
      (define (on-left-mouse-up event)
+       (let* ([t (closest-tile event)]
+              [normal (tile-normal t)])
+         (set! tiles (spin tiles
+                           normal
+                           (let ([v (vector-product normal (tile-position t))])
+                             (lambda (t) (equal? v (vector-product normal (tile-position t)))))
+                           (curry matrix-vector-product (rotation-matrix normal 1)))))
+       (with-gl-context update-vertices!)
+       (on-paint)
        (on-mouse-up event))
      (define (on-right-mouse-up event)
        (on-mouse-up event))
