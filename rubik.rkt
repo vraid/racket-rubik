@@ -12,11 +12,8 @@
          ffi/cvector
          ffi/unsafe)
 
-(require plot
-         profile
-         profile/render-text)
-
 (define current-rotation (quaternion-identity))
+(define next-rotation (quaternion-identity))
 (define (rotation) current-rotation)
 (define in-current-spin? (thunk* #f))
 (define spin-rotation (quaternion-identity))
@@ -374,7 +371,7 @@
    (fl (/ (- (vector-ref v 1) (/ display-height 2)) display-height scale))))
 
 (define (closest-tile tiles event)
-  (let ([v (mouse-to-sphere event)])
+  (let ([v (mouse-to-sphere (rotation) event)])
     (argmin (lambda (t)
               (flvector3-distance-squared (matrix3-vector3* (tile-rotation t) v) (tile-center-vertex t)))
             tiles)))
@@ -384,7 +381,6 @@
 
 (define (neighbouring-tiles tile)
   (define (neighbours? t)
-    
     (>= (if (equal? (tile-normal t)
                     (tile-normal tile))
             1
@@ -406,9 +402,9 @@
        (tile-normal b)
        (tile-normal a))))
 
-(define (mouse-to-sphere event)
+(define (mouse-to-sphere rotation event)
   (quaternion-vector-product
-   (quaternion-inverse (rotation))
+   (quaternion-inverse rotation)
    (inverse-stereographic-projection
     (screen-to-viewport (vector (send event get-x)
                                 (send event get-y))))))
@@ -441,6 +437,7 @@
        (when (fl< milliseconds-between-frames
                   (fl- (current-inexact-milliseconds) last-draw))
          (begin
+           (set! current-rotation next-rotation)
            (with-gl-context update-vertices!)
            (on-paint)
            (set! last-draw (current-inexact-milliseconds)))))
@@ -449,12 +446,12 @@
        (void))
      
      (define (on-right-mouse-move event)
-       (let* ([v (mouse-to-sphere event)]
+       (let* ([v (mouse-to-sphere next-rotation event)]
               [angle (flvector3-angle v mouse-down-vector)])
-         (set! current-rotation
+         (set! next-rotation
                (quaternion-normal
                 (quaternion-product
-                 (rotation)
+                 next-rotation
                  (axis-angle->quaternion
                   (flvector3-cross-product mouse-down-vector v)
                   angle)))))
@@ -467,6 +464,7 @@
          [#f (void)])
        (set! last-mouse-x (send event get-x))
        (set! last-mouse-y (send event get-y)))
+     
      (define (on-mouse-click event)
        (void))
      
@@ -480,7 +478,7 @@
        (unless (and mouse-moving?
                     mouse-button)
          (set! mouse-button 'right)
-         (set! mouse-down-vector (mouse-to-sphere event)))
+         (set! mouse-down-vector (mouse-to-sphere (rotation) event)))
        (on-mouse-down event))
      
      (define (on-mouse-down event)
@@ -488,50 +486,52 @@
        (set! mouse-down-y (send event get-y)))
      
      (define (on-mouse-up event)
-       (set! mouse-button #f)
-       (set! mouse-down-tile #f))
+       (set! mouse-button #f))
      
      (define (on-left-mouse-up event)
-       (let* ([t (closest-tile (neighbouring-tiles mouse-down-tile) event)]
-              [normal (tile-normal t)])
-         (unless (or animating?
-                     (eq? t mouse-down-tile))
-           (set! animating? #t)
-           (let* ([axis (rotation-axis t mouse-down-tile)]
-                  [v (vector-product axis (tile-position t))]
-                  [in-rotation? (lambda (t) (equal? v (vector-product axis (tile-position t))))])
-             (letrec ([t (new timer%
-                              [notify-callback (thunk
-                                                (if (finished?)
-                                                    (on-finish)
-                                                    (on-step)))]
-                              [just-once? #f])]
-                      [acceleration (* 0.000002 pi)]
-                      [distance (* 0.5 pi)]
-                      [start-time (current-inexact-milliseconds)]
-                      [elapsed-time (thunk (- (current-inexact-milliseconds)
-                                              start-time))]
-                      [time (* 2 (sqrt (/ (/ distance 2) acceleration)))]
-                      [on-step (thunk
-                                (set! in-current-spin? in-rotation?)
-                                (set! spin-rotation (axis-angle->quaternion
-                                                     (vector->flvector axis)
-                                                     (* 0.5 acceleration (expt (elapsed-time) 2.0))))
-                                (repaint!))]
-                      [finished? (thunk (<= time (elapsed-time)))]
-                      [on-finish (thunk
-                                  (send t stop)
-                                  (spin-tiles! axis
-                                               in-rotation?
-                                               (curry matrix-vector-product (rotation-matrix axis 1)))
-                                  (set! in-current-spin? (thunk* #f))
-                                  (set! animating? #f)
-                                  (with-gl-context update-vertices!)
-                                  (on-paint))])
-               (send t start (inexact->exact (round milliseconds-between-frames)))))))
+       (when (eq? mouse-button 'left)
+         (let* ([t (closest-tile (neighbouring-tiles mouse-down-tile) event)]
+                [normal (tile-normal t)])
+           (unless (or animating?
+                       (eq? t mouse-down-tile))
+             (set! animating? #t)
+             (let* ([axis (rotation-axis t mouse-down-tile)]
+                    [v (vector-product axis (tile-position t))]
+                    [in-rotation? (lambda (t) (equal? v (vector-product axis (tile-position t))))])
+               (letrec ([t (new timer%
+                                [notify-callback (thunk
+                                                  (if (finished?)
+                                                      (on-finish)
+                                                      (on-step)))]
+                                [just-once? #f])]
+                        [acceleration (* 0.000002 pi)]
+                        [distance (* 0.5 pi)]
+                        [start-time (current-inexact-milliseconds)]
+                        [elapsed-time (thunk (- (current-inexact-milliseconds)
+                                                start-time))]
+                        [time (* 2 (sqrt (/ (/ distance 2) acceleration)))]
+                        [on-step (thunk
+                                  (set! in-current-spin? in-rotation?)
+                                  (set! spin-rotation (axis-angle->quaternion
+                                                       (vector->flvector axis)
+                                                       (* 0.5 acceleration (expt (elapsed-time) 2.0))))
+                                  (repaint!))]
+                        [finished? (thunk (<= time (elapsed-time)))]
+                        [on-finish (thunk
+                                    (send t stop)
+                                    (spin-tiles! axis
+                                                 in-rotation?
+                                                 (curry matrix-vector-product (rotation-matrix axis 1)))
+                                    (set! in-current-spin? (thunk* #f))
+                                    (set! animating? #f)
+                                    (with-gl-context update-vertices!)
+                                    (on-paint))])
+                 (send t start (inexact->exact (round milliseconds-between-frames))))))))
+       (set! mouse-down-tile #f)
        (on-mouse-up event))
      
      (define (on-right-mouse-up event)
+       (set! next-rotation current-rotation)
        (on-mouse-up event))
      
      (define (zoom-in!)
