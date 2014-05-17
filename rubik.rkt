@@ -18,14 +18,18 @@
 
 (define current-rotation (quaternion-identity))
 (define (rotation) current-rotation)
+(define in-current-spin? (thunk* #f))
+(define spin-rotation (quaternion-identity))
 (define scale 0.15)
 (define scale-max 100.0)
 (define scale-min 0.5)
 
+(define animating? #f)
 (define mouse-moving? #f)
 (define mouse-down? #f)
 (define mouse-down-x #f)
 (define mouse-down-y #f)
+(define mouse-down-tile #f)
 (define mouse-down-vector #f)
 (define last-mouse-x #f)
 (define last-mouse-y #f)
@@ -239,6 +243,19 @@
 (define (vector-product u v)
   (vector-map * u v))
 
+(define (vector-cross-product v u)
+  (let ([v (curry vector-ref v)]
+        [u (curry vector-ref u)])
+    (vector (- (* (u 1) (v 2))
+               (* (u 2) (v 1)))
+            (- (* (u 2) (v 0))
+               (* (u 0) (v 2)))
+            (- (* (u 0) (v 1))
+               (* (u 1) (v 0))))))
+
+(define (vector-subtract u v)
+  (vector-map - v u))
+
 (define tiles
   (apply vector-append
          (map (lambda (n color orientation)
@@ -283,6 +300,9 @@
                        (tile-edge-vertices t)))))
               tiles))
 
+(define (spin-tiles! axis in-spin? rotate)
+  (set! tiles (spin tiles axis in-spin? rotate)))
+
 (define (->gl-vertex coord color)
   (make-gl-vertex
    (flvector-ref coord 0)
@@ -320,7 +340,11 @@
     (for ([n (* 6 9)])
       (let* ([tile (vector-ref tiles n)]
              [color (tile-color tile)]
-             [m (matrix3* (quaternion->matrix3 (rotation)) (tile-rotation tile))]
+             [m (matrix3* (quaternion->matrix3
+                           (if (in-current-spin? tile)
+                               (quaternion-product (rotation) spin-rotation)
+                               (rotation)))
+                          (tile-rotation tile))]
              [rotate (curry matrix3-vector3* m)])
         (if (fl< 0.91 (flvector-ref (rotate (tile-center-vertex tile)) 2))
             (for ([i tile-vertex-count])
@@ -349,11 +373,38 @@
    (fl* (fl (/ (- (vector-ref v 0) (/ display-width 2)) display-width scale)) (exact->inexact (/ display-width display-height)))
    (fl (/ (- (vector-ref v 1) (/ display-height 2)) display-height scale))))
 
-(define (closest-tile event)
+(define (closest-tile tiles event)
   (let ([v (mouse-to-sphere event)])
     (argmin (lambda (t)
               (flvector3-distance-squared (matrix3-vector3* (tile-rotation t) v) (tile-center-vertex t)))
-            (vector->list tiles))))
+            tiles)))
+
+(define (vector-distance v u)
+  (vector-sum (vector-map abs (vector-subtract v u))))
+
+(define (neighbouring-tiles tile)
+  (define (neighbours? t)
+    
+    (>= (if (equal? (tile-normal t)
+                    (tile-normal tile))
+            1
+            0)
+        (vector-distance (tile-position t)
+                         (tile-position tile))))
+  (filter neighbours? (vector->list tiles)))
+
+(define (rotation-axis a b)
+  (if (equal? (tile-normal a)
+              (tile-normal b))
+      (vector-cross-product
+       (vector-subtract (tile-position a)
+                        (tile-position b))
+       (vector-product
+        (vector-product (tile-normal a) (tile-normal a))
+        (tile-position a)))
+      (vector-cross-product
+       (tile-normal b)
+       (tile-normal a))))
 
 (define (mouse-to-sphere event)
   (quaternion-vector-product
@@ -378,20 +429,25 @@
          (gl-draw 'tile-vertices
                   'tile-indices)
          (swap-gl-buffers))))
+     
      (define/override (on-size width height)
        (set! display-width width)
        (set! display-height height)
        (with-gl-context
         (thunk
          (set-gl-viewport 0 0 width height))))
+     
      (define (repaint!)
        (when (fl< milliseconds-between-frames
                   (fl- (current-inexact-milliseconds) last-draw))
          (begin
+           (with-gl-context update-vertices!)
            (on-paint)
            (set! last-draw (current-inexact-milliseconds)))))
+     
      (define (on-left-mouse-move event)
        (void))
+     
      (define (on-right-mouse-move event)
        (let* ([v (mouse-to-sphere event)]
               [angle (flvector3-angle v mouse-down-vector)])
@@ -402,8 +458,8 @@
                  (axis-angle->quaternion
                   (flvector3-cross-product mouse-down-vector v)
                   angle)))))
-       (with-gl-context (thunk (update-vertices!)))
        (repaint!))
+     
      (define (on-mouse-move event)
        (match mouse-button
          ['left (on-left-mouse-move event)]
@@ -413,49 +469,89 @@
        (set! last-mouse-y (send event get-y)))
      (define (on-mouse-click event)
        (void))
+     
      (define (on-left-mouse-down event)
        (unless mouse-button
-         (set! mouse-button 'left))
+         (set! mouse-button 'left)
+         (set! mouse-down-tile (closest-tile (vector->list tiles) event)))
        (on-mouse-down event))
+     
      (define (on-right-mouse-down event)
        (unless (and mouse-moving?
                     mouse-button)
          (set! mouse-button 'right)
          (set! mouse-down-vector (mouse-to-sphere event)))
        (on-mouse-down event))
+     
      (define (on-mouse-down event)
        (set! mouse-down-x (send event get-x))
        (set! mouse-down-y (send event get-y)))
+     
      (define (on-mouse-up event)
-       (set! mouse-button #f))
+       (set! mouse-button #f)
+       (set! mouse-down-tile #f))
+     
      (define (on-left-mouse-up event)
-       (let* ([t (closest-tile event)]
+       (let* ([t (closest-tile (neighbouring-tiles mouse-down-tile) event)]
               [normal (tile-normal t)])
-         (set! tiles (spin tiles
-                           normal
-                           (let ([v (vector-product normal (tile-position t))])
-                             (lambda (t) (equal? v (vector-product normal (tile-position t)))))
-                           (curry matrix-vector-product (rotation-matrix normal 1)))))
-       (with-gl-context update-vertices!)
-       (on-paint)
+         (unless (or animating?
+                     (eq? t mouse-down-tile))
+           (set! animating? #t)
+           (let* ([axis (rotation-axis t mouse-down-tile)]
+                  [v (vector-product axis (tile-position t))]
+                  [in-rotation? (lambda (t) (equal? v (vector-product axis (tile-position t))))])
+             (letrec ([t (new timer%
+                              [notify-callback (thunk
+                                                (if (finished?)
+                                                    (on-finish)
+                                                    (on-step)))]
+                              [just-once? #f])]
+                      [acceleration (* 0.000002 pi)]
+                      [distance (* 0.5 pi)]
+                      [start-time (current-inexact-milliseconds)]
+                      [elapsed-time (thunk (- (current-inexact-milliseconds)
+                                              start-time))]
+                      [time (* 2 (sqrt (/ (/ distance 2) acceleration)))]
+                      [on-step (thunk
+                                (set! in-current-spin? in-rotation?)
+                                (set! spin-rotation (axis-angle->quaternion
+                                                     (vector->flvector axis)
+                                                     (* 0.5 acceleration (expt (elapsed-time) 2.0))))
+                                (repaint!))]
+                      [finished? (thunk (<= time (elapsed-time)))]
+                      [on-finish (thunk
+                                  (send t stop)
+                                  (spin-tiles! axis
+                                               in-rotation?
+                                               (curry matrix-vector-product (rotation-matrix axis 1)))
+                                  (set! in-current-spin? (thunk* #f))
+                                  (set! animating? #f)
+                                  (with-gl-context update-vertices!)
+                                  (on-paint))])
+               (send t start (inexact->exact (round milliseconds-between-frames)))))))
        (on-mouse-up event))
+     
      (define (on-right-mouse-up event)
        (on-mouse-up event))
+     
      (define (zoom-in!)
        (set! scale
              (min scale-max
                   (* scale 1.05)))
        (repaint!))
+     
      (define (zoom-out!)
        (set! scale
              (max scale-min
                   (/ scale 1.05)))
        (repaint!))
+     
      (define/override (on-char event)
        (define key-code (send event get-key-code))
        (match key-code
          ['escape (exit)]
          [_ (void)]))
+     
      (define/override (on-event event)
        (match (send event get-event-type)
          ['left-down (on-left-mouse-down event)]
