@@ -1,21 +1,6 @@
 #lang racket
 
-(provide _gl-vertex
-         set-gl-vertex-red!
-         set-gl-vertex-green!
-         set-gl-vertex-blue!
-         make-gl-vertex
-         (struct-out gl-buffer)
-         get-gl-buffer
-         set-gl-vertex-buffer!
-         set-gl-index-buffer!
-         set-gl-ortho-projection
-         gl-rotate
-         gl-translate
-         set-gl-viewport
-         gl-cull-face
-         gl-clear
-         gl-draw)
+(provide (all-defined-out))
 
 (require ffi/vector
          ffi/cvector
