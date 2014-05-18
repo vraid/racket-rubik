@@ -521,7 +521,9 @@
        (void))
      
      (define (on-left-mouse-down event)
-       (unless mouse-button
+       (when (or (not mouse-button)
+                 (eq? mouse-button 'left))
+         (displayln "left")
          (set! mouse-button 'left)
          (set! mouse-down-tile (closest-tile (vector->list tiles) event)))
        (on-mouse-down event))
@@ -550,35 +552,38 @@
              (let* ([axis (rotation-axis t mouse-down-tile)]
                     [v (vector-product axis (tile-position t))]
                     [in-rotation? (lambda (t) (equal? v (vector-product axis (tile-position t))))])
-               (letrec ([t (new timer%
-                                [notify-callback (thunk
-                                                  (if (finished?)
-                                                      (on-finish)
-                                                      (on-step)))]
-                                [just-once? #f])]
-                        [acceleration (* 0.000002 pi)]
-                        [distance (* 0.5 pi)]
-                        [start-time (current-inexact-milliseconds)]
-                        [elapsed-time (thunk (- (current-inexact-milliseconds)
-                                                start-time))]
-                        [time (* 2 (sqrt (/ (/ distance 2) acceleration)))]
-                        [on-step (thunk
-                                  (set! in-current-spin? in-rotation?)
-                                  (set! spin-rotation (axis-angle->quaternion
-                                                       (vector->flvector axis)
-                                                       (* 0.5 acceleration (expt (elapsed-time) 2.0))))
-                                  (repaint!))]
-                        [finished? (thunk (<= time (elapsed-time)))]
-                        [on-finish (thunk
-                                    (send t stop)
-                                    (spin-tiles! axis
-                                                 in-rotation?
-                                                 (curry matrix-vector-product (rotation-matrix axis 1)))
-                                    (set! in-current-spin? (thunk* #f))
-                                    (set! animating? #f)
-                                    (with-gl-context update-vertices!)
-                                    (on-paint))])
-                 (send t start (inexact->exact (round milliseconds-between-frames))))))))
+               (displayln axis)
+               (if (= 1 (vector-distance (vector 0 0 0) axis))
+                   (letrec ([t (new timer%
+                                    [notify-callback (thunk
+                                                      (if (finished?)
+                                                          (on-finish)
+                                                          (on-step)))]
+                                    [just-once? #f])]
+                            [acceleration (* 0.000002 pi)]
+                            [distance (* 0.5 pi)]
+                            [start-time (current-inexact-milliseconds)]
+                            [elapsed-time (thunk (- (current-inexact-milliseconds)
+                                                    start-time))]
+                            [time (* 2 (sqrt (/ (/ distance 2) acceleration)))]
+                            [on-step (thunk
+                                      (set! in-current-spin? in-rotation?)
+                                      (set! spin-rotation (axis-angle->quaternion
+                                                           (vector->flvector axis)
+                                                           (* 0.5 acceleration (expt (elapsed-time) 2.0))))
+                                      (repaint!))]
+                            [finished? (thunk (<= time (elapsed-time)))]
+                            [on-finish (thunk
+                                        (send t stop)
+                                        (spin-tiles! axis
+                                                     in-rotation?
+                                                     (curry matrix-vector-product (rotation-matrix axis 1)))
+                                        (set! in-current-spin? (thunk* #f))
+                                        (set! animating? #f)
+                                        (with-gl-context update-vertices!)
+                                        (on-paint))])
+                     (send t start (inexact->exact (round milliseconds-between-frames))))
+                   (set! animating? #f))))))
        (set! mouse-down-tile #f)
        (on-mouse-up event))
      
