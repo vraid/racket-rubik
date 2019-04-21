@@ -95,13 +95,13 @@
                                     (flvector* corner-vec
                                                (flvector 1.0 -1.0 1.0)))))
     (define first-edge (build-vector edge-vertex-count
-                                     (lambda (n)
+                                     (λ (n)
                                        (quaternion-vector-product
                                         (axis-angle->quaternion (flvector 1.0 0.0 0.0)
                                                                 (angle-fraction angle n edge-vertex-count))
                                         corner-vec))))
     (apply vector-append
-           (map (lambda (a)
+           (map (λ (a)
                   (vector-map (curry quaternion-vector-product
                                      (axis-angle->quaternion (flvector 0.0 0.0 1.0)
                                                              (angle-fraction tau a 4)))
@@ -134,7 +134,7 @@
                                                      (list three four))))
     (define (build-side plane angle vector)
       (build-vector edge-vertex-count
-                    (lambda (n)
+                    (λ (n)
                       (quaternion-vector-product (axis-angle->quaternion
                                                   plane
                                                   (angle-fraction angle n edge-vertex-count))
@@ -171,7 +171,7 @@
                                                    (list two three))))
     (define (build-side plane angle vector)
       (build-vector edge-vertex-count
-                    (lambda (n)
+                    (λ (n)
                       (quaternion-vector-product (axis-angle->quaternion
                                                   plane
                                                   (angle-fraction angle n edge-vertex-count))
@@ -191,11 +191,11 @@
    edge-vertices))
 
 (define face
-  (build-vector 9 (lambda (n)
+  (build-vector 9 (λ (n)
                     (let* ([x (- (modulo n 3) 1)]
                            [y (- (floor (/ n 3)) 1)]
                            [center (flvector (fl x) (fl y) 1.5)]
-                           [rotation (lambda (v a)
+                           [rotation (λ (v a)
                                        (vector-map (curry quaternion-vector-product
                                                           (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* a tau)))
                                                    v))]
@@ -231,7 +231,7 @@
     (+ sum (vector-ref v n))))
 
 (define (matrix-vector-product m v)
-  (let ([m (lambda (r)
+  (let ([m (λ (r)
              (vector-sum
               (vector-map *
                           (matrix-row m r)
@@ -256,8 +256,8 @@
 
 (define tiles
   (apply vector-append
-         (map (lambda (n color orientation)
-                (vector-map (lambda (t)
+         (map (λ (n color orientation)
+                (vector-map (λ (t)
                               (tile
                                color
                                (matrix-vector-product
@@ -284,7 +284,7 @@
   (find 0))
 
 (define (spin tiles axis in-spin? rotate)
-  (vector-map (lambda (t)
+  (vector-map (λ (t)
                 (if (not (in-spin? t))
                     t
                     (let ([position (tile-position t)]
@@ -364,7 +364,7 @@
                               (tile-rotation tile))])
       (curry matrix3-vector3-product m)))
   (let ([vertices (gl-buffer-data (get-gl-buffer 'tile-vertices))])
-    (letrec ([rec (lambda (n)
+    (letrec ([rec (λ (n)
                     (if (= n (* 6 9))
                         #f
                         (let* ([tile (vector-ref tiles n)]
@@ -420,7 +420,7 @@
 
 (define (closest-tile tiles event)
   (let ([v (mouse-to-sphere (rotation) event)])
-    (argmin (lambda (t)
+    (argmin (λ (t)
               (flvector3-distance-squared (matrix3-vector3-product (tile-rotation t) v) (tile-center-vertex t)))
             tiles)))
 
@@ -551,7 +551,7 @@
              (set! animating? #t)
              (let* ([axis (rotation-axis t mouse-down-tile)]
                     [v (vector-product axis (tile-position t))]
-                    [in-rotation? (lambda (t) (equal? v (vector-product axis (tile-position t))))])
+                    [in-rotation? (λ (t) (equal? v (vector-product axis (tile-position t))))])
                (displayln axis)
                (if (= 1 (vector-distance (vector 0 0 0) axis))
                    (letrec ([t (new timer%

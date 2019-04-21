@@ -42,11 +42,11 @@
    (flcolor->byte (flcolor-blue c))))
 
 (define flcolor-interpolate
-  (lambda: ([col-one : flcolor]
-            [col-two : flcolor]
-            [d : Flonum])
+  (λ ([col-one : flcolor]
+      [col-two : flcolor]
+      [d : Flonum])
     (let* ([1-d (fl- 1.0 d)]
-           [f (lambda: ([f : (flcolor -> Flonum)])
+           [f (λ ([f : (flcolor -> Flonum)])
                 (fl+ (fl* 1-d (f col-one))
                      (fl* d (f col-two))))])
       (flcolor (f flcolor-green)
