@@ -2,5 +2,5 @@
 
 (provide (all-defined-out))
 
-(: tau Flonum)
+(: tau Float)
 (define tau (* 2.0 pi))

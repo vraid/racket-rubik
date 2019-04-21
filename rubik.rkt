@@ -227,7 +227,7 @@
 
 (define (vector-sum v)
   (for/fold ([sum 0])
-    ([n (range (vector-length v))])
+            ([n (range (vector-length v))])
     (+ sum (vector-ref v n))))
 
 (define (matrix-vector-product m v)
@@ -357,12 +357,12 @@
 
 (define (update-vertices!)
   (define (rotate-tile tile)
-    (let ([m (matrix3* (quaternion->matrix3
-                        (if (in-current-spin? tile)
-                            (quaternion-product (rotation) spin-rotation)
-                            (rotation)))
-                       (tile-rotation tile))])
-      (curry matrix3-vector3* m)))
+    (let ([m (matrix3-product (quaternion->matrix3
+                               (if (in-current-spin? tile)
+                                   (quaternion-product (rotation) spin-rotation)
+                                   (rotation)))
+                              (tile-rotation tile))])
+      (curry matrix3-vector3-product m)))
   (let ([vertices (gl-buffer-data (get-gl-buffer 'tile-vertices))])
     (letrec ([rec (lambda (n)
                     (if (= n (* 6 9))
@@ -421,7 +421,7 @@
 (define (closest-tile tiles event)
   (let ([v (mouse-to-sphere (rotation) event)])
     (argmin (lambda (t)
-              (flvector3-distance-squared (matrix3-vector3* (tile-rotation t) v) (tile-center-vertex t)))
+              (flvector3-distance-squared (matrix3-vector3-product (tile-rotation t) v) (tile-center-vertex t)))
             tiles)))
 
 (define (vector-distance v u)
@@ -463,27 +463,27 @@
      (inherit with-gl-context swap-gl-buffers)
      (define/override (on-paint)
        (with-gl-context
-        (thunk
-         (let* ([v (screen-to-viewport (vector display-width
-                                               display-height))]
-                [mx (flvector-ref v 0)]
-                [my (flvector-ref v 1)])
-           (set-gl-ortho-projection (- mx) mx my (- my) -2.0 2.0))
-         (gl-clear (if top-tile
-                       (flcolor->list (tile-color top-tile))
-                       (list 0.0 0.0 0.0 0.0)))
-         (gl-draw 'top-tile-vertices
-                  'top-tile-indices)
-         (gl-draw 'tile-vertices
-                  'tile-indices)
-         (swap-gl-buffers))))
+           (thunk
+            (let* ([v (screen-to-viewport (vector display-width
+                                                  display-height))]
+                   [mx (flvector-ref v 0)]
+                   [my (flvector-ref v 1)])
+              (set-gl-ortho-projection (- mx) mx my (- my) -2.0 2.0))
+            (gl-clear (if top-tile
+                          (flcolor->list (tile-color top-tile))
+                          (list 0.0 0.0 0.0 0.0)))
+            (gl-draw 'top-tile-vertices
+                     'top-tile-indices)
+            (gl-draw 'tile-vertices
+                     'tile-indices)
+            (swap-gl-buffers))))
      
      (define/override (on-size width height)
        (set! display-width width)
        (set! display-height height)
        (with-gl-context
-        (thunk
-         (set-gl-viewport 0 0 width height))))
+           (thunk
+            (set-gl-viewport 0 0 width height))))
      
      (define (repaint!)
        (when (fl< milliseconds-between-frames
@@ -505,7 +505,7 @@
                 (quaternion-product
                  next-rotation
                  (axis-angle->quaternion
-                  (flvector3-cross-product mouse-down-vector v)
+                  (flvector3-cross-product v mouse-down-vector)
                   angle)))))
        (repaint!))
      
