@@ -8,6 +8,7 @@
          "quaternion.rkt"
          "matrix3.rkt"
          "color.rkt"
+         "spin.rkt"
          "opengl.rkt"
          "render.rkt")
 
@@ -40,30 +41,6 @@
   (get-display-size))
 
 (define tiles (make-tiles vertex-count))
-
-(define (color-of position normal)
-  (define (find n)
-    (let ([t (vector-ref tiles n)])
-      (if (and (equal? normal (tile-normal t))
-               (equal? position (tile-position t)))
-          (tile-color t)
-          (find (+ n 1)))))
-  (find 0))
-
-(define (spin tiles axis in-spin? rotate)
-  (vector-map (λ (t)
-                (if (not (in-spin? t))
-                    t
-                    (let ([position (tile-position t)]
-                          [normal (tile-normal t)])
-                      (tile
-                       (color-of (rotate position) (rotate normal))
-                       position
-                       normal
-                       (tile-rotation t)
-                       (tile-center-vertex t)
-                       (tile-edge-vertices t)))))
-              tiles))
 
 (define (spin-tiles! axis in-spin? rotate)
   (set! tiles (spin tiles axis in-spin? rotate)))
