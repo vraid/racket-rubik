@@ -1,12 +1,11 @@
 #lang typed/racket
 
-(require "color.rkt"
-         "quaternion.rkt")
+(require "quaternion.rkt")
 
 (provide (struct-out tile))
 
 (struct tile
-  ([color : flcolor]
+  ([face : Integer]
    [position : (Vectorof Integer)]
    [normal : (Vectorof Integer)]
    [rotation : quaternion]

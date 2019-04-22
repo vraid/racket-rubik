@@ -1,7 +1,6 @@
 #lang typed/racket
 
 (require math/flonum
-         "color.rkt"
          "tile.rkt"
          "vertices.rkt"
          "matrix3.rkt"
@@ -14,15 +13,6 @@
          vector-cross-product
          matrix-vector-product
          rotation-matrix)
-
-(define rubik-colors
-  (list
-   (flcolor 1.0 1.0 0.0 1.0)
-   (flcolor 1.0 0.0 0.0 1.0)
-   (flcolor 0.0 1.0 0.0 1.0)
-   (flcolor 1.0 0.0 1.0 1.0)
-   (flcolor 0.0 0.0 1.0 1.0)
-   (flcolor 1.0 1.0 1.0 1.0)))
 
 (define ref
   (λ ([v : (Vectorof Integer)])
@@ -94,16 +84,15 @@
   (vector-map exact-round (flvector->vector v)))
 
 (define tiles
-  (λ ([colors : (Listof flcolor)]
-      [orientations : (Listof quaternion)])
+  (λ ([orientations : (Listof quaternion)])
     (λ ([vertex-count : Integer])
       (apply vector-append
-             (map (λ ([color : flcolor]
+             (map (λ ([face : Integer]
                       [orientation : quaternion])
                     (let* ([orientation-matrix (to-int-vector (quaternion->matrix3 orientation))])
                       (vector-map (λ ([t : tile])
                                     (tile
-                                     color
+                                     face
                                      (matrix-vector-product
                                       orientation-matrix
                                       (tile-position t))
@@ -113,9 +102,9 @@
                                      orientation
                                      (tile-center-vertex t)
                                      (tile-edge-vertices t)))
-                                  (face vertex-count))))
-                  colors
+                                  (face-vertices vertex-count))))
+                  (range 6)
                   orientations)))))
 
 (define make-tiles
-  (tiles rubik-colors face-orientations))
+  (tiles face-orientations))

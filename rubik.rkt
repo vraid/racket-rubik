@@ -41,6 +41,18 @@
   (window-width window-height)
   (get-display-size))
 
+(define rubik-colors
+  (vector
+   (flcolor 1.0 1.0 0.0 1.0)
+   (flcolor 1.0 0.0 0.0 1.0)
+   (flcolor 0.0 1.0 0.0 1.0)
+   (flcolor 1.0 0.0 1.0 1.0)
+   (flcolor 0.0 0.0 1.0 1.0)
+   (flcolor 1.0 1.0 1.0 1.0)))
+
+(define face-color (curry vector-ref rubik-colors))
+(define tile-color (compose face-color tile-face))
+
 (define tiles (make-tiles vertex-count))
 
 (define (spin-tiles! axis in-spin? rotate)
@@ -111,7 +123,7 @@
 (define update-vertices
   (thunk
    (set-top-tile!)
-   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices tiles vertex-count) top-tile rotate-tile))))
+   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices tiles tile-color vertex-count) top-tile rotate-tile))))
 
 (define (point-in-polygon? point polygon)
   (define (x v)

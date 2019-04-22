@@ -59,7 +59,7 @@
         (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 vertex-count))))))
     indices))
 
-(define ((updated-vertices tiles vertex-count) top-tile rotate-tile)
+(define ((updated-vertices tiles tile-color vertex-count) top-tile rotate-tile)
   (let* ([tile-vertex-count (+ 1 (* 4 vertex-count))]
          [vertices (gl-buffer-data (get-gl-buffer 'tile-vertices))])
     (when top-tile

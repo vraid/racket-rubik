@@ -4,10 +4,9 @@
          "constants.rkt"
          "flvector3.rkt"
          "quaternion.rkt"
-         "color.rkt"
          "tile.rkt")
 
-(provide face)
+(provide face-vertices)
 
 (define rotation-plane (fl (sin (fl/ tau 24.0))))
 (define plane-gap 0.025)
@@ -163,8 +162,7 @@
                      (vector))])))))
 
 (define face-tile
-  (let ([no-color (flcolor 0.0 0.0 0.0 0.0)]
-        [no-rotation (quaternion-identity)])
+  (let ([no-rotation (quaternion-identity)])
     (λ ([vertex-count : Integer])
       (let* ([face-vertices
               (face-tile-vertices
@@ -176,13 +174,13 @@
                  [y (- (floor (/ n 3)) 1)]
                  [center (flvector (fl x) (fl y) 1.5)])
             (tile
-             no-color
+             -1
              (vector x y 1)
              (vector 0 0 1)
              no-rotation
              (flvector3-normal center)
              (face-vertices x y))))))))
 
-(define face
+(define face-vertices
   (λ ([vertex-count : Integer])
     (build-vector 9 (face-tile vertex-count))))
