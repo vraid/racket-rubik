@@ -91,17 +91,15 @@
                       [orientation : quaternion])
                     (let* ([orientation-matrix (to-int-vector (quaternion->matrix3 orientation))])
                       (vector-map (λ ([t : tile])
-                                    (tile
-                                     face
-                                     (matrix-vector-product
-                                      orientation-matrix
-                                      (tile-position t))
-                                     (matrix-vector-product
-                                      orientation-matrix
-                                      (tile-normal t))
-                                     orientation
-                                     (tile-center-vertex t)
-                                     (tile-edge-vertices t)))
+                                    (struct-copy tile t
+                                                 [face face]
+                                                 [position (matrix-vector-product
+                                                            orientation-matrix
+                                                            (tile-position t))]
+                                                 [normal (matrix-vector-product
+                                                          orientation-matrix
+                                                          (tile-normal t))]
+                                                 [rotation orientation]))
                                   (face-vertices vertex-count))))
                   (range 6)
                   orientations)))))

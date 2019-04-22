@@ -17,13 +17,6 @@
   (vector-map (λ (t)
                 (if (not (in-spin? t))
                     t
-                    (let ([position (tile-position t)]
-                          [normal (tile-normal t)])
-                      (tile
-                       (face-of tiles (rotate position) (rotate normal))
-                       position
-                       normal
-                       (tile-rotation t)
-                       (tile-center-vertex t)
-                       (tile-edge-vertices t)))))
+                    (struct-copy tile t
+                                 [face (face-of tiles (rotate (tile-position t)) (rotate (tile-normal t)))])))
               tiles))
