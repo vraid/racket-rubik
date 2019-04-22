@@ -1,6 +1,6 @@
 #lang racket
 
-(require "vertices.rkt")
+(require "tile.rkt")
 
 (provide spin)
 

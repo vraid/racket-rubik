@@ -4,18 +4,10 @@
          "constants.rkt"
          "flvector3.rkt"
          "quaternion.rkt"
-         "color.rkt")
+         "color.rkt"
+         "tile.rkt")
 
-(provide (struct-out tile)
-         face)
-
-(struct tile
-  ([color : flcolor]
-   [position : (Vectorof Integer)]
-   [normal : (Vectorof Integer)]
-   [rotation : FlVector]
-   [center-vertex : FlVector]
-   [edge-vertices : (Vectorof FlVector)]))
+(provide face)
 
 (define rotation-plane (fl (sin (fl/ tau 24.0))))
 (define plane-gap 0.025)

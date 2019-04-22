@@ -2,10 +2,10 @@
 
 (require math/flonum
          "color.rkt"
+         "tile.rkt"
          "vertices.rkt")
 
-(provide (struct-out tile)
-         make-tiles
+(provide make-tiles
          vector-sum
          vector-subtract
          vector-product

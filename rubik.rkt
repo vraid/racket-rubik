@@ -4,10 +4,11 @@
          math/flonum
          "flvector3.rkt"
          "stereographic-projection.rkt"
-         "geometry.rkt"
          "quaternion.rkt"
          "matrix3.rkt"
          "color.rkt"
+         "tile.rkt"
+         "geometry.rkt"
          "spin.rkt"
          "opengl.rkt"
          "render.rkt")

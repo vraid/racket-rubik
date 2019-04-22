@@ -6,7 +6,7 @@
          "opengl.rkt"
          "color.rkt"
          "stereographic-projection.rkt"
-         "geometry.rkt")
+         "tile.rkt")
 
 (provide make-tile-buffers
          make-tile-vertices
