@@ -164,7 +164,7 @@
 
 (define face-tile
   (let ([no-color (flcolor 0.0 0.0 0.0 0.0)]
-        [no-rotation (flvector 0.0 0.0 0.0)])
+        [no-rotation (quaternion-identity)])
     (λ ([vertex-count : Integer])
       (let* ([face-vertices
               (face-tile-vertices

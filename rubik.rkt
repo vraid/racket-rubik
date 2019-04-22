@@ -3,13 +3,13 @@
 (require racket/gui/base
          math/flonum
          "flvector3.rkt"
-         "stereographic-projection.rkt"
-         "quaternion.rkt"
          "matrix3.rkt"
+         "quaternion.rkt"
          "color.rkt"
          "tile.rkt"
          "geometry.rkt"
          "spin.rkt"
+         "stereographic-projection.rkt"
          "opengl.rkt"
          "render.rkt")
 
@@ -64,7 +64,7 @@
 (define (closest-tile tiles event)
   (let ([v (mouse-to-sphere (rotation) event)])
     (argmin (λ (t)
-              (flvector3-distance-squared (matrix3-vector3-product (tile-rotation t) v) (tile-center-vertex t)))
+              (flvector3-distance-squared (quaternion-vector-product (tile-rotation t) v) (tile-center-vertex t)))
             tiles)))
 
 (define (vector-distance v u)
@@ -101,11 +101,11 @@
                                 (send event get-y))))))
 
 (define (rotate-tile tile)
-  (let ([m (matrix3-product (quaternion->matrix3
-                             (if (in-current-spin? tile)
-                                 (quaternion-product (rotation) spin-rotation)
-                                 (rotation)))
-                            (tile-rotation tile))])
+  (let ([m (quaternion->matrix3 (quaternion-product 
+                                 (if (in-current-spin? tile)
+                                     (quaternion-product (rotation) spin-rotation)
+                                     (rotation))
+                                 (quaternion-inverse (tile-rotation tile))))])
     (curry matrix3-vector3-product m)))
 
 (define update-vertices
@@ -283,8 +283,6 @@
          [_ (void)]))
      (super-instantiate () (style '(gl))))
    [parent frame]))
-
-(define gl-context canvas)
 
 (send canvas with-gl-context (thunk (set-gl-vertex-buffer! 'top-tile-vertices
                                                            (make-tile-vertices vertex-count))))

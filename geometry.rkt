@@ -3,7 +3,9 @@
 (require math/flonum
          "color.rkt"
          "tile.rkt"
-         "vertices.rkt")
+         "vertices.rkt"
+         "matrix3.rkt"
+         "quaternion.rkt")
 
 (provide make-tiles
          vector-sum
@@ -80,36 +82,38 @@
             (- (* d y)) (* d x) (* z z))))
 
 (define face-orientations
-  (list
-   (rotation-matrix (vector 1 1 1) 0)
-   (rotation-matrix (vector 0 1 0) 1)
-   (rotation-matrix (vector 1 0 0) -1)
-   (rotation-matrix (vector 0 1 0) -1)
-   (rotation-matrix (vector 1 0 0) 1)
-   (vector 1 0 0
-           0 -1 0
-           0 0 -1)))
+  (list (quaternion-identity)
+        (axis-angle->quaternion (flvector 0.0 1.0 0.0) (/ pi 2))
+        (axis-angle->quaternion (flvector 1.0 0.0 0.0) (- (/ pi 2)))
+        (axis-angle->quaternion (flvector 0.0 1.0 0.0) (- (/ pi 2)))
+        (axis-angle->quaternion (flvector 1.0 0.0 0.0) (/ pi 2))
+        (axis-angle->quaternion (flvector 1.0 0.0 0.0) pi)))
+
+(: to-int-vector (-> FlVector (Vectorof Integer)))
+(define (to-int-vector v)
+  (vector-map exact-round (flvector->vector v)))
 
 (define tiles
   (λ ([colors : (Listof flcolor)]
-      [orientations : (Listof (Vectorof Integer))])
+      [orientations : (Listof quaternion)])
     (λ ([vertex-count : Integer])
       (apply vector-append
              (map (λ ([color : flcolor]
-                      [orientation : (Vectorof Integer)])
-                    (vector-map (λ ([t : tile])
-                                  (tile
-                                   color
-                                   (matrix-vector-product
-                                    orientation
-                                    (tile-position t))
-                                   (matrix-vector-product
-                                    orientation
-                                    (tile-normal t))
-                                   (build-flvector 9 (compose fl (ref orientation)))
-                                   (tile-center-vertex t)
-                                   (tile-edge-vertices t)))
-                                (face vertex-count)))
+                      [orientation : quaternion])
+                    (let* ([orientation-matrix (to-int-vector (quaternion->matrix3 orientation))])
+                      (vector-map (λ ([t : tile])
+                                    (tile
+                                     color
+                                     (matrix-vector-product
+                                      orientation-matrix
+                                      (tile-position t))
+                                     (matrix-vector-product
+                                      orientation-matrix
+                                      (tile-normal t))
+                                     orientation
+                                     (tile-center-vertex t)
+                                     (tile-edge-vertices t)))
+                                  (face vertex-count))))
                   colors
                   orientations)))))
 

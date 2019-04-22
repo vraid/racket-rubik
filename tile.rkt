@@ -1,6 +1,7 @@
 #lang typed/racket
 
-(require "color.rkt")
+(require "color.rkt"
+         "quaternion.rkt")
 
 (provide (struct-out tile))
 
@@ -8,6 +9,6 @@
   ([color : flcolor]
    [position : (Vectorof Integer)]
    [normal : (Vectorof Integer)]
-   [rotation : FlVector]
+   [rotation : quaternion]
    [center-vertex : FlVector]
    [edge-vertices : (Vectorof FlVector)]))
