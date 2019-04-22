@@ -2,16 +2,10 @@
 
 (require math/flonum
          "color.rkt"
-         "constants.rkt"
-         "flvector3.rkt"
-         "matrix3.rkt"
-         "quaternion.rkt"
          "vertices.rkt")
 
 (provide (struct-out tile)
          make-tiles
-         edge-vertex-count
-         tile-vertex-count
          vector-sum
          vector-subtract
          vector-product
@@ -85,9 +79,6 @@
             (* d z) (* y y) (- (* d x))
             (- (* d y)) (* d x) (* z z))))
 
-(define edge-vertex-count 16)
-(define tile-vertex-count (+ 1 (* 4 edge-vertex-count)))
-
 (define face-orientations
   (list
    (rotation-matrix (vector 1 1 1) 0)
@@ -102,24 +93,25 @@
 (define tiles
   (λ ([colors : (Listof flcolor)]
       [orientations : (Listof (Vectorof Integer))])
-    (apply vector-append
-           (map (λ ([color : flcolor]
-                    [orientation : (Vectorof Integer)])
-                  (vector-map (λ ([t : tile])
-                                (tile
-                                 color
-                                 (matrix-vector-product
-                                  orientation
-                                  (tile-position t))
-                                 (matrix-vector-product
-                                  orientation
-                                  (tile-normal t))
-                                 (build-flvector 9 (compose fl (ref orientation)))
-                                 (tile-center-vertex t)
-                                 (tile-edge-vertices t)))
-                              (face edge-vertex-count)))
-                colors
-                orientations))))
+    (λ ([vertex-count : Integer])
+      (apply vector-append
+             (map (λ ([color : flcolor]
+                      [orientation : (Vectorof Integer)])
+                    (vector-map (λ ([t : tile])
+                                  (tile
+                                   color
+                                   (matrix-vector-product
+                                    orientation
+                                    (tile-position t))
+                                   (matrix-vector-product
+                                    orientation
+                                    (tile-normal t))
+                                   (build-flvector 9 (compose fl (ref orientation)))
+                                   (tile-center-vertex t)
+                                   (tile-edge-vertices t)))
+                                (face vertex-count)))
+                  colors
+                  orientations)))))
 
-(define (make-tiles)
+(define make-tiles
   (tiles rubik-colors face-orientations))

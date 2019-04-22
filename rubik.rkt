@@ -1,17 +1,18 @@
 #lang racket
 
 (require racket/gui/base
+         math/flonum
          "flvector3.rkt"
          "stereographic-projection.rkt"
          "geometry.rkt"
          "quaternion.rkt"
          "matrix3.rkt"
-         "math.rkt"
          "color.rkt"
          "opengl.rkt"
-         math/flonum
-         ffi/cvector
-         ffi/unsafe)
+         "render.rkt")
+
+(define vertex-count 16)
+(define tile-vertex-count (+ 1 (* 4 vertex-count)))
 
 (define current-rotation (quaternion-identity))
 (define next-rotation (quaternion-identity))
@@ -38,7 +39,7 @@
   (window-width window-height)
   (get-display-size))
 
-(define tiles (make-tiles))
+(define tiles (make-tiles vertex-count))
 
 (define (color-of position normal)
   (define (find n)
@@ -66,103 +67,6 @@
 
 (define (spin-tiles! axis in-spin? rotate)
   (set! tiles (spin tiles axis in-spin? rotate)))
-
-(define (->gl-vertex coord color)
-  (make-gl-vertex
-   (flvector-ref coord 0)
-   (flvector-ref coord 1)
-   (flvector-ref coord 2)
-   (flcolor->byte (flcolor-red color))
-   (flcolor->byte (flcolor-green color))
-   (flcolor->byte (flcolor-blue color))
-   (flcolor->byte (flcolor-alpha color))))
-
-(define (make-tile-buffers!)
-  (let* ([vertices (make-cvector _gl-vertex (* 6 9 tile-vertex-count))]
-         [indices (make-cvector _uint (* 6 9 3 4 edge-vertex-count))]
-         [color (flcolor 0.0 0.0 0.0 0.0)])
-    (for ([n (* 6 9)])
-      (let ([tile (vector-ref tiles n)])
-        (cvector-set! vertices (* n tile-vertex-count) (->gl-vertex (tile-center-vertex tile) color))
-        (for ([i (* 4 edge-vertex-count)])
-          (cvector-set! vertices (+ 1 i (* n tile-vertex-count)) (->gl-vertex (vector-ref (tile-edge-vertices tile) i)
-                                                                              color))
-          (let ([k (+ (* i 3) (* n 3 4 edge-vertex-count))])
-            (cvector-set! indices k (* n tile-vertex-count))
-            (cvector-set! indices (+ 1 k) (+ 1 (modulo i (* 4 edge-vertex-count)) (* n tile-vertex-count)))
-            (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 edge-vertex-count)) (* n tile-vertex-count))))))
-      (set-gl-vertex-buffer! 'tile-vertices vertices)
-      (set-gl-index-buffer! 'tile-indices indices))))
-
-(define (point-in-polygon? point polygon)
-  (define (x v)
-    (flvector-ref v 0))
-  (define (y v)
-    (flvector-ref v 1))
-  (define (rec n b)
-    (if (= n (vector-length polygon))
-        b
-        (let ([v2 (vector-ref polygon n)]
-              [v1 (vector-ref polygon (modulo (+ 1 n) (vector-length polygon)))])
-          (if (and (xor (fl> (y v1) (y point))
-                        (fl> (y v2) (y point)))
-                   (fl< (x point)
-                        (fl+ (x v1)
-                             (fl/ (fl* (fl- (x v2) (x v1))
-                                       (fl- (y point) (y v1)))
-                                  (fl- (y v2)
-                                       (y v1))))))
-              (rec (+ 1 n) (not b))
-              (rec (+ 1 n) b)))))
-  (rec 0 #f))
-
-(define (update-vertices!)
-  (define (rotate-tile tile)
-    (let ([m (matrix3-product (quaternion->matrix3
-                               (if (in-current-spin? tile)
-                                   (quaternion-product (rotation) spin-rotation)
-                                   (rotation)))
-                              (tile-rotation tile))])
-      (curry matrix3-vector3-product m)))
-  (let ([vertices (gl-buffer-data (get-gl-buffer 'tile-vertices))])
-    (letrec ([rec (λ (n)
-                    (if (= n (* 6 9))
-                        #f
-                        (let* ([tile (vector-ref tiles n)]
-                               [rotate (rotate-tile tile)])
-                          (if (and (fl< 0.8 (flvector-ref (rotate (tile-center-vertex tile)) 2))
-                                   (point-in-polygon? (flvector 0.0 0.0 0.0)
-                                                      (vector-map rotate (tile-edge-vertices tile))))
-                              tile
-                              (rec (+ n 1))))))])
-      (set! top-tile (rec 0)))
-    (when top-tile
-      (let* ([color (flcolor 0.0 0.0 0.0 0.0)]
-             [vertices (gl-buffer-data (get-gl-buffer 'top-tile-vertices))]
-             [rotate (rotate-tile top-tile)])
-        (for ([i (* 4 edge-vertex-count)])
-          (cvector-set! vertices (+ 1 i) (->gl-vertex (let ([v (stereographic-projection (rotate (vector-ref (tile-edge-vertices top-tile) i)))])
-                                                        (if (or (nan? (flvector-ref v 0))
-                                                                (nan? (flvector-ref v 1)))
-                                                            (stereographic-projection (rotate (vector-ref (tile-edge-vertices top-tile) (modulo (+ 1 i) (* 4 edge-vertex-count)))))
-                                                            v))
-                                                      color)))
-        (set-gl-vertex-buffer! 'top-tile-vertices vertices)))
-    (for ([n (* 6 9)])
-      (let* ([tile (vector-ref tiles n)]
-             [color (tile-color tile)])
-        (if (eq? tile top-tile)
-            (for ([i tile-vertex-count])
-              (cvector-set! vertices (+ i (* n tile-vertex-count)) (->gl-vertex (flvector 0.0 0.0 0.0)
-                                                                                color)))
-            (let ([rotate (rotate-tile tile)])
-              (begin
-                (cvector-set! vertices (* n tile-vertex-count) (->gl-vertex (stereographic-projection (rotate (tile-center-vertex tile)))
-                                                                            color))
-                (for ([i (* 4 edge-vertex-count)])
-                  (cvector-set! vertices (+ (* n tile-vertex-count) 1 i) (->gl-vertex (stereographic-projection (rotate (vector-ref (tile-edge-vertices tile) i)))
-                                                                                      color))))))))
-    (set-gl-vertex-buffer! 'tile-vertices vertices)))
 
 (define frame
   (new frame%
@@ -218,6 +122,54 @@
     (screen-to-viewport (vector (send event get-x)
                                 (send event get-y))))))
 
+(define (rotate-tile tile)
+  (let ([m (matrix3-product (quaternion->matrix3
+                             (if (in-current-spin? tile)
+                                 (quaternion-product (rotation) spin-rotation)
+                                 (rotation)))
+                            (tile-rotation tile))])
+    (curry matrix3-vector3-product m)))
+
+(define update-vertices
+  (thunk
+   (set-top-tile!)
+   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices tiles vertex-count) top-tile rotate-tile))))
+
+(define (point-in-polygon? point polygon)
+  (define (x v)
+    (flvector-ref v 0))
+  (define (y v)
+    (flvector-ref v 1))
+  (define (rec n b)
+    (if (= n (vector-length polygon))
+        b
+        (let ([v2 (vector-ref polygon n)]
+              [v1 (vector-ref polygon (modulo (+ 1 n) (vector-length polygon)))])
+          (if (and (xor (fl> (y v1) (y point))
+                        (fl> (y v2) (y point)))
+                   (fl< (x point)
+                        (fl+ (x v1)
+                             (fl/ (fl* (fl- (x v2) (x v1))
+                                       (fl- (y point) (y v1)))
+                                  (fl- (y v2)
+                                       (y v1))))))
+              (rec (+ 1 n) (not b))
+              (rec (+ 1 n) b)))))
+  (rec 0 #f))
+
+(define (set-top-tile!)
+  (letrec ([rec (λ (n)
+                  (if (= n (* 6 9))
+                      #f
+                      (let* ([tile (vector-ref tiles n)]
+                             [rotate (rotate-tile tile)])
+                        (if (and (fl< 0.8 (flvector-ref (rotate (tile-center-vertex tile)) 2))
+                                 (point-in-polygon? (flvector 0.0 0.0 0.0)
+                                                    (vector-map rotate (tile-edge-vertices tile))))
+                            tile
+                            (rec (+ n 1))))))])
+    (set! top-tile (rec 0))))
+
 (define canvas
   (new
    (class* canvas% ()
@@ -251,7 +203,7 @@
                   (fl- (current-inexact-milliseconds) last-draw))
          (begin
            (set! current-rotation next-rotation)
-           (with-gl-context update-vertices!)
+           (with-gl-context update-vertices)
            (on-paint)
            (set! last-draw (current-inexact-milliseconds)))))
      
@@ -326,7 +278,7 @@
                                                      (curry matrix-vector-product (rotation-matrix axis 1)))
                                         (set! in-current-spin? (thunk* #f))
                                         (set! animating? #f)
-                                        (with-gl-context update-vertices!)
+                                        (with-gl-context update-vertices)
                                         (on-paint))])
                      (send t start (inexact->exact (round milliseconds-between-frames))))
                    (set! animating? #f))))))
@@ -357,23 +309,12 @@
 (define gl-context canvas)
 
 (send canvas with-gl-context (thunk (set-gl-vertex-buffer! 'top-tile-vertices
-                                                           (let ([vectors (make-cvector _gl-vertex tile-vertex-count)]
-                                                                 [zero-vertex (->gl-vertex (flvector 0.0 0.0 0.0)
-                                                                                           (flcolor 0.0 0.0 0.0 0.0))])
-                                                             (for ([i tile-vertex-count])
-                                                               (cvector-set! vectors i zero-vertex))
-                                                             vectors))))
+                                                           (make-tile-vertices vertex-count))))
 (send canvas with-gl-context (thunk (set-gl-index-buffer! 'top-tile-indices
-                                                          (let ([indices (make-cvector _uint (* 12 edge-vertex-count))])
-                                                            (for ([i (* 4 edge-vertex-count)])
-                                                              (let ([k (+ (* i 3))])
-                                                                (cvector-set! indices k 0)
-                                                                (cvector-set! indices (+ 1 k) (+ 1 (modulo i (* 4 edge-vertex-count))))
-                                                                (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 edge-vertex-count))))))
-                                                            indices))))
+                                                          (make-tile-indices vertex-count))))
 
-(send canvas with-gl-context (thunk (make-tile-buffers!)
-                                    (update-vertices!)))
+(send canvas with-gl-context (thunk (make-tile-buffers tiles vertex-count)
+                                    (update-vertices)))
 
 (send frame maximize #t)
 (send frame show #t)
