@@ -1,22 +1,28 @@
-#lang racket
+#lang typed/racket
 
-(require "tile.rkt")
+(provide post-spin-tile
+         post-spin-permutation)
 
-(provide spin)
+(define post-spin-tile
+  (λ ([rotate : (-> (Vectorof Integer) (Vectorof Integer))]
+      [normal : (-> Integer (Vectorof Integer))]
+      [position : (-> Integer (Vectorof Integer))])
+    (λ ([k : Integer])
+      (let* ([rotated-normal (rotate (normal k))]
+             [rotated-position (rotate (position k))])
+        (λ ([n : Integer])
+          (and (equal? rotated-normal (normal n))
+               (equal? rotated-position (position n))))))))
 
-(define (face-of tiles faces position normal)
-  (define (find n)
-    (let ([t (vector-ref tiles n)])
-      (if (and (equal? normal (tile-normal t))
-               (equal? position (tile-position t)))
-          (vector-ref faces n)
-          (find (+ n 1)))))
-  (find 0))
+(: find/default (All (A) (-> A (-> A Boolean) (Listof A) A)))
+(define (find/default default f ls)
+  (let ([res (findf f ls)])
+    (if res res default)))
 
-(define (spin tiles faces axis in-spin? rotate)
-  (map (λ (n)
-         (let ([t (vector-ref tiles n)])
-           (if (not (in-spin? t))
-               (vector-ref faces n)
-               (face-of tiles faces (rotate (tile-position t)) (rotate (tile-normal t))))))
-       (range (vector-length tiles))))
+(define post-spin-permutation
+  (λ ([tile-range : (Listof Integer)]
+      [spinning? : (-> Integer Boolean)]
+      [matching : (-> Integer (-> Integer Boolean))])
+    (map (λ ([n : Integer])
+           (if (not (spinning? n)) n (find/default -1 (matching n) tile-range)))
+         tile-range)))

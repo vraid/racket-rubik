@@ -60,8 +60,16 @@
 
 (define tiles (make-tiles vertex-count))
 
-(define (spin-tiles! axis in-spin? rotate)
-  (set! faces (list->vector (spin tiles faces axis in-spin? rotate))))
+(define normal (curry vector-ref (vector-map tile-normal tiles)))
+(define position (curry vector-ref (vector-map tile-position tiles)))
+
+(define (spin-tiles! in-spin? rotate)
+  (let* ([tile-range (range (vector-length tiles))]
+         [post-spin (post-spin-tile rotate normal position)]
+         [permutation (post-spin-permutation tile-range in-spin? post-spin)])
+    (set! faces (list->vector
+                 (map (curry vector-ref faces)
+                      permutation)))))
 
 (define frame
   (new frame%
@@ -245,7 +253,8 @@
              (set! animating? #t)
              (let* ([axis (rotation-axis t mouse-down-tile)]
                     [v (vector-product axis (tile-position t))]
-                    [in-rotation? (λ (t) (equal? v (vector-product axis (tile-position t))))])
+                    [in-rotation? (λ (tile)
+                                    (equal? v (vector-product axis (tile-position tile))))])
                (if (= 1 (vector-distance (vector 0 0 0) axis))
                    (letrec ([t (new timer%
                                     [notify-callback (thunk
@@ -268,8 +277,7 @@
                             [finished? (thunk (<= time (elapsed-time)))]
                             [on-finish (thunk
                                         (send t stop)
-                                        (spin-tiles! axis
-                                                     in-rotation?
+                                        (spin-tiles! (compose in-rotation? (curry vector-ref tiles))
                                                      (curry matrix-vector-product (rotation-matrix axis 1)))
                                         (set! in-current-spin? (thunk* #f))
                                         (set! animating? #f)
