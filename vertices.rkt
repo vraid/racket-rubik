@@ -174,7 +174,6 @@
                  [y (- (floor (/ n 3)) 1)]
                  [center (flvector (fl x) (fl y) 1.5)])
             (tile
-             -1
              (vector x y 1)
              (vector 0 0 1)
              no-rotation

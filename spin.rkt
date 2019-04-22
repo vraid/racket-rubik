@@ -4,19 +4,19 @@
 
 (provide spin)
 
-(define (face-of tiles position normal)
+(define (face-of tiles faces position normal)
   (define (find n)
     (let ([t (vector-ref tiles n)])
       (if (and (equal? normal (tile-normal t))
                (equal? position (tile-position t)))
-          (tile-face t)
+          (vector-ref faces n)
           (find (+ n 1)))))
   (find 0))
 
-(define (spin tiles axis in-spin? rotate)
-  (vector-map (λ (t)
-                (if (not (in-spin? t))
-                    t
-                    (struct-copy tile t
-                                 [face (face-of tiles (rotate (tile-position t)) (rotate (tile-normal t)))])))
-              tiles))
+(define (spin tiles faces axis in-spin? rotate)
+  (map (λ (n)
+         (let ([t (vector-ref tiles n)])
+           (if (not (in-spin? t))
+               (vector-ref faces n)
+               (face-of tiles faces (rotate (tile-position t)) (rotate (tile-normal t))))))
+       (range (vector-length tiles))))

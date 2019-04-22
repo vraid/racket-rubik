@@ -22,8 +22,6 @@
 (define in-current-spin? (thunk* #f))
 (define spin-rotation (quaternion-identity))
 (define scale 0.13)
-(define scale-max 100.0)
-(define scale-min 0.5)
 
 (define top-tile #f)
 (define animating? #f)
@@ -50,13 +48,20 @@
    (flcolor 0.0 0.0 1.0 1.0)
    (flcolor 1.0 1.0 1.0 1.0)))
 
+(define faces
+  (apply vector-append
+         (map (λ (n)
+                (make-vector 9 n))
+              (range 6))))
+
 (define face-color (curry vector-ref rubik-colors))
-(define tile-color (compose face-color tile-face))
+(define (tile-color n)
+  (face-color (vector-ref faces n)))
 
 (define tiles (make-tiles vertex-count))
 
 (define (spin-tiles! axis in-spin? rotate)
-  (set! tiles (spin tiles axis in-spin? rotate)))
+  (set! faces (list->vector (spin tiles faces axis in-spin? rotate))))
 
 (define frame
   (new frame%
@@ -156,7 +161,7 @@
                         (if (and (fl< 0.8 (flvector-ref (rotate (tile-center-vertex tile)) 2))
                                  (point-in-polygon? (flvector 0.0 0.0 0.0)
                                                     (vector-map rotate (tile-edge-vertices tile))))
-                            tile
+                            n
                             (rec (+ n 1))))))])
     (set! top-tile (rec 0))))
 

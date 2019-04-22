@@ -87,12 +87,10 @@
   (λ ([orientations : (Listof quaternion)])
     (λ ([vertex-count : Integer])
       (apply vector-append
-             (map (λ ([face : Integer]
-                      [orientation : quaternion])
+             (map (λ ([orientation : quaternion])
                     (let* ([orientation-matrix (to-int-vector (quaternion->matrix3 orientation))])
                       (vector-map (λ ([t : tile])
                                     (struct-copy tile t
-                                                 [face face]
                                                  [position (matrix-vector-product
                                                             orientation-matrix
                                                             (tile-position t))]
@@ -101,7 +99,6 @@
                                                           (tile-normal t))]
                                                  [rotation orientation]))
                                   (face-vertices vertex-count))))
-                  (range 6)
                   orientations)))))
 
 (define make-tiles

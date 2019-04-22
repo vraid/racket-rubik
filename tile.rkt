@@ -5,8 +5,7 @@
 (provide (struct-out tile))
 
 (struct tile
-  ([face : Integer]
-   [position : (Vectorof Integer)]
+  ([position : (Vectorof Integer)]
    [normal : (Vectorof Integer)]
    [rotation : quaternion]
    [center-vertex : FlVector]

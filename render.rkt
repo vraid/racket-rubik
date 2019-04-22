@@ -59,11 +59,12 @@
         (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 vertex-count))))))
     indices))
 
-(define ((updated-vertices tiles tile-color vertex-count) top-tile rotate-tile)
+(define ((updated-vertices tiles tile-color vertex-count) top-tile-id rotate-tile)
   (let* ([tile-vertex-count (+ 1 (* 4 vertex-count))]
          [vertices (gl-buffer-data (get-gl-buffer 'tile-vertices))])
-    (when top-tile
-      (let* ([color (flcolor 0.0 0.0 0.0 0.0)]
+    (when top-tile-id
+      (let* ([top-tile (vector-ref tiles top-tile-id)]
+             [color (flcolor 0.0 0.0 0.0 0.0)]
              [vertices (gl-buffer-data (get-gl-buffer 'top-tile-vertices))]
              [rotate (rotate-tile top-tile)])
         (for ([i (* 4 vertex-count)])
@@ -76,8 +77,8 @@
         (set-gl-vertex-buffer! 'top-tile-vertices vertices)))
     (for ([n (* 6 9)])
       (let* ([tile (vector-ref tiles n)]
-             [color (tile-color tile)])
-        (if (eq? tile top-tile)
+             [color (tile-color n)])
+        (if (eq? n top-tile-id)
             (for ([i tile-vertex-count])
               (cvector-set! vertices (+ i (* n tile-vertex-count)) (->gl-vertex (flvector 0.0 0.0 0.0)
                                                                                 color)))
