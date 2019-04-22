@@ -24,14 +24,8 @@
 
 (define top-tile #f)
 (define animating? #f)
-(define mouse-moving? #f)
-(define mouse-down? #f)
-(define mouse-down-x #f)
-(define mouse-down-y #f)
 (define mouse-down-tile #f)
 (define mouse-down-vector #f)
-(define last-mouse-x #f)
-(define last-mouse-y #f)
 (define mouse-button #f)
 (define milliseconds-between-frames 15.0)
 (define last-draw 0.0)
@@ -99,11 +93,6 @@
             (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 edge-vertex-count)) (* n tile-vertex-count))))))
       (set-gl-vertex-buffer! 'tile-vertices vertices)
       (set-gl-index-buffer! 'tile-indices indices))))
-
-(define (set-gl-vertex-color! p color)
-  (set-gl-vertex-red! p (byte-color-red color))
-  (set-gl-vertex-green! p (byte-color-green color))
-  (set-gl-vertex-blue! p (byte-color-blue color)))
 
 (define (point-in-polygon? point polygon)
   (define (x v)
@@ -285,30 +274,17 @@
        (match mouse-button
          ['left (on-left-mouse-move event)]
          ['right (on-right-mouse-move event)]
-         [#f (void)])
-       (set! last-mouse-x (send event get-x))
-       (set! last-mouse-y (send event get-y)))
-     
-     (define (on-mouse-click event)
-       (void))
+         [#f (void)]))
      
      (define (on-left-mouse-down event)
        (when (or (not mouse-button)
                  (eq? mouse-button 'left))
          (set! mouse-button 'left)
-         (set! mouse-down-tile (closest-tile (vector->list tiles) event)))
-       (on-mouse-down event))
+         (set! mouse-down-tile (closest-tile (vector->list tiles) event))))
      
      (define (on-right-mouse-down event)
-       (unless (and mouse-moving?
-                    mouse-button)
-         (set! mouse-button 'right)
-         (set! mouse-down-vector (mouse-to-sphere (rotation) event)))
-       (on-mouse-down event))
-     
-     (define (on-mouse-down event)
-       (set! mouse-down-x (send event get-x))
-       (set! mouse-down-y (send event get-y)))
+       (set! mouse-button 'right)
+       (set! mouse-down-vector (mouse-to-sphere (rotation) event)))
      
      (define (on-mouse-up event)
        (set! mouse-button #f))
@@ -360,18 +336,6 @@
      (define (on-right-mouse-up event)
        (set! next-rotation current-rotation)
        (on-mouse-up event))
-     
-     (define (zoom-in!)
-       (set! scale
-             (min scale-max
-                  (* scale 1.05)))
-       (repaint!))
-     
-     (define (zoom-out!)
-       (set! scale
-             (max scale-min
-                  (/ scale 1.05)))
-       (repaint!))
      
      (define/override (on-char event)
        (define key-code (send event get-key-code))
