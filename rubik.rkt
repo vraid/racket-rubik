@@ -9,6 +9,7 @@
          "tile.rkt"
          "geometry.rkt"
          "spin.rkt"
+         "polygon.rkt"
          "stereographic-projection.rkt"
          "opengl.rkt"
          "render.rkt")
@@ -137,28 +138,6 @@
   (thunk
    (set-top-tile!)
    (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices tiles tile-color vertex-count) top-tile rotate-tile))))
-
-(define (point-in-polygon? point polygon)
-  (define (x v)
-    (flvector-ref v 0))
-  (define (y v)
-    (flvector-ref v 1))
-  (define (rec n b)
-    (if (= n (vector-length polygon))
-        b
-        (let ([v2 (vector-ref polygon n)]
-              [v1 (vector-ref polygon (modulo (+ 1 n) (vector-length polygon)))])
-          (if (and (xor (fl> (y v1) (y point))
-                        (fl> (y v2) (y point)))
-                   (fl< (x point)
-                        (fl+ (x v1)
-                             (fl/ (fl* (fl- (x v2) (x v1))
-                                       (fl- (y point) (y v1)))
-                                  (fl- (y v2)
-                                       (y v1))))))
-              (rec (+ 1 n) (not b))
-              (rec (+ 1 n) b)))))
-  (rec 0 #f))
 
 (define (set-top-tile!)
   (letrec ([rec (λ (n)
