@@ -5,6 +5,7 @@
          "flvector3.rkt"
          "matrix3.rkt"
          "quaternion.rkt"
+         "discrete-algebra.rkt"
          "color.rkt"
          "tile.rkt"
          "geometry.rkt"
@@ -93,29 +94,26 @@
               (flvector3-distance-squared (quaternion-vector-product (tile-rotation t) v) (tile-center-vertex t)))
             tiles)))
 
-(define (vector-distance v u)
-  (vector-sum (vector-map abs (vector-subtract v u))))
-
 (define (neighbouring-tiles tile)
   (define (neighbours? t)
     (>= (if (equal? (tile-normal t)
                     (tile-normal tile))
             1
             0)
-        (vector-distance (tile-position t)
-                         (tile-position tile))))
+        (discrete-vector-distance (tile-position t)
+                                  (tile-position tile))))
   (filter neighbours? (vector->list tiles)))
 
 (define (rotation-axis a b)
   (if (equal? (tile-normal a)
               (tile-normal b))
-      (vector-cross-product
-       (vector-subtract (tile-position a)
-                        (tile-position b))
-       (vector-product
-        (vector-product (tile-normal a) (tile-normal a))
+      (discrete-vector-cross-product
+       (discrete-vector-subtract (tile-position a)
+                                 (tile-position b))
+       (discrete-vector-product
+        (discrete-vector-product (tile-normal a) (tile-normal a))
         (tile-position a)))
-      (vector-cross-product
+      (discrete-vector-cross-product
        (tile-normal b)
        (tile-normal a))))
 
@@ -231,10 +229,10 @@
                        (eq? t mouse-down-tile))
              (set! animating? #t)
              (let* ([axis (rotation-axis t mouse-down-tile)]
-                    [v (vector-product axis (tile-position t))]
+                    [v (discrete-vector-product axis (tile-position t))]
                     [in-rotation? (λ (tile)
-                                    (equal? v (vector-product axis (tile-position tile))))])
-               (if (= 1 (vector-distance (vector 0 0 0) axis))
+                                    (equal? v (discrete-vector-product axis (tile-position tile))))])
+               (if (= 1 (discrete-vector-distance (vector 0 0 0) axis))
                    (letrec ([t (new timer%
                                     [notify-callback (thunk
                                                       (if (finished?)
@@ -257,7 +255,7 @@
                             [on-finish (thunk
                                         (send t stop)
                                         (spin-tiles! (compose in-rotation? (curry vector-ref tiles))
-                                                     (curry matrix-vector-product (rotation-matrix axis 1)))
+                                                     (curry discrete-matrix-vector-product (discrete-rotation-matrix axis 1)))
                                         (set! in-current-spin? (thunk* #f))
                                         (set! animating? #f)
                                         (with-gl-context update-vertices)
