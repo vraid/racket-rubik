@@ -134,52 +134,45 @@
        (build-side (flvector -1.0 0.0 0.0) side-angle three)
        (build-side (flvector3-normal (flvector 0.0 1.0 1.0)) top-angle four)))))
 
-(define face-tile-vertices
-  (λ ([center-vertices : (Vectorof FlVector)]
-      [edge-vertices : (Vectorof FlVector)]
-      [corner-vertices : (Vectorof FlVector)])
-    (λ ([x : Integer]
-        [y : Integer])
-      (let* ([rotation (λ ([v : (Vectorof FlVector)])
-                         (λ ([a : Flonum])
-                           (vector-map (curry quaternion-vector-product
-                                              (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* a tau)))
-                                       v)))]
-             [edge (rotation edge-vertices)]
-             [corner (rotation corner-vertices)])
-        (match (list x y)
-          ['(0 0) center-vertices]
-          ['(-1 0) (edge 0.0)]
-          ['(0 1) (edge 0.25)]
-          ['(1 0) (edge 0.5)]
-          ['(0 -1) (edge 0.75)]
-          ['(-1 -1) (corner 0.0)]
-          ['(-1 1) (corner 0.25)]
-          ['(1 1) (corner 0.5)]
-          ['(1 -1) (corner 0.75)]
-          [default (begin
-                     (error "invalid position")
-                     (vector))])))))
+(struct def
+  ([position : (Vector Integer Integer)]
+   [vertices : (Vectorof FlVector)]))
+
+(define tile-defs
+  (λ ([vertex-count : Integer])
+    (let* ([quaternion (λ ([a : Flonum])
+                         (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* a tau)))]
+           [rotation (λ ([v : (Vectorof FlVector)])
+                       (λ ([a : Flonum])
+                         (vector-map (curry quaternion-vector-product (quaternion a))
+                                     v)))]
+           [edge (rotation (edge-tile-vertices vertex-count))]
+           [corner (rotation (corner-tile-vertices vertex-count))])
+      (list
+       (def '#(0 0) (center-tile-vertices vertex-count))
+       (def '#(-1 0) (edge 0.0))
+       (def '#(0 1) (edge 0.25))
+       (def '#(1 0) (edge 0.5))
+       (def '#(0 -1) (edge 0.75))
+       (def '#(-1 -1) (corner 0.0))
+       (def '#(-1 1) (corner 0.25))
+       (def '#(1 1) (corner 0.5))
+       (def '#(1 -1) (corner 0.75))))))
 
 (define face-tile
   (let ([no-rotation (quaternion-identity)])
-    (λ ([vertex-count : Integer])
-      (let* ([face-vertices
-              (face-tile-vertices
-               (center-tile-vertices vertex-count)
-               (edge-tile-vertices vertex-count)
-               (corner-tile-vertices vertex-count))])
-        (λ ([n : Integer])
-          (let* ([x (- (modulo n 3) 1)]
-                 [y (- (floor (/ n 3)) 1)]
-                 [center (flvector (fl x) (fl y) 1.5)])
-            (tile
-             (vector x y 1)
-             (vector 0 0 1)
-             no-rotation
-             (flvector3-normal center)
-             (face-vertices x y))))))))
+    (λ ([a : def])
+      (let* ([pos (def-position a)]
+             [x (vector-ref pos 0)]
+             [y (vector-ref pos 1)]
+             [center (flvector (fl x) (fl y) 1.5)])
+        (tile
+         (vector x y 1)
+         (vector 0 0 1)
+         no-rotation
+         (flvector3-normal center)
+         (def-vertices a))))))
 
 (define face-vertices
   (λ ([vertex-count : Integer])
-    (build-vector 9 (face-tile vertex-count))))
+    (list->vector (map face-tile (tile-defs vertex-count)))))
