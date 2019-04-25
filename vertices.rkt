@@ -3,10 +3,11 @@
 (require math/flonum
          "constants.rkt"
          "flvector3.rkt"
-         "quaternion.rkt"
-         "tile.rkt")
+         "quaternion.rkt")
 
-(provide face-vertices)
+(provide center-tile-vertices
+         edge-tile-vertices
+         corner-tile-vertices)
 
 (define rotation-plane (fl (sin (fl/ tau 24.0))))
 (define plane-gap 0.025)
@@ -133,46 +134,3 @@
        (build-side (flvector 0.0 -1.0 0.0) side-angle two)
        (build-side (flvector -1.0 0.0 0.0) side-angle three)
        (build-side (flvector3-normal (flvector 0.0 1.0 1.0)) top-angle four)))))
-
-(struct def
-  ([position : (Vector Integer Integer)]
-   [vertices : (Vectorof FlVector)]))
-
-(define tile-defs
-  (λ ([vertex-count : Integer])
-    (let* ([quaternion (λ ([a : Flonum])
-                         (axis-angle->quaternion (flvector 0.0 0.0 1.0) (* a tau)))]
-           [rotation (λ ([v : (Vectorof FlVector)])
-                       (λ ([a : Flonum])
-                         (vector-map (curry quaternion-vector-product (quaternion a))
-                                     v)))]
-           [edge (rotation (edge-tile-vertices vertex-count))]
-           [corner (rotation (corner-tile-vertices vertex-count))])
-      (list
-       (def '#(0 0) (center-tile-vertices vertex-count))
-       (def '#(-1 0) (edge 0.0))
-       (def '#(0 1) (edge 0.25))
-       (def '#(1 0) (edge 0.5))
-       (def '#(0 -1) (edge 0.75))
-       (def '#(-1 -1) (corner 0.0))
-       (def '#(-1 1) (corner 0.25))
-       (def '#(1 1) (corner 0.5))
-       (def '#(1 -1) (corner 0.75))))))
-
-(define face-tile
-  (let ([no-rotation (quaternion-identity)])
-    (λ ([a : def])
-      (let* ([pos (def-position a)]
-             [x (vector-ref pos 0)]
-             [y (vector-ref pos 1)]
-             [center (flvector (fl x) (fl y) 1.5)])
-        (tile
-         (vector x y 1)
-         (vector 0 0 1)
-         no-rotation
-         (flvector3-normal center)
-         (def-vertices a))))))
-
-(define face-vertices
-  (λ ([vertex-count : Integer])
-    (list->vector (map face-tile (tile-defs vertex-count)))))

@@ -7,7 +7,6 @@
          "quaternion.rkt"
          "discrete-algebra.rkt"
          "color.rkt"
-         "tile.rkt"
          "geometry.rkt"
          "spin.rkt"
          "polygon.rkt"
@@ -16,7 +15,6 @@
          "render.rkt")
 
 (define vertex-count 16)
-(define tile-vertex-count (+ 1 (* 4 vertex-count)))
 
 (define current-rotation (quaternion-identity))
 (define next-rotation (quaternion-identity))
@@ -50,28 +48,27 @@
    (flcolor 0.0 0.0 1.0 1.0)
    (flcolor 1.0 1.0 1.0 1.0)))
 
-(define faces
-  (apply vector-append
-         (map (λ (n)
-                (make-vector 9 n))
-              (range 6))))
+(define cube (make-cube vertex-count))
+(define tile-range (cube-tile-range cube))
+(define tile-face (cube-tile-face cube))
+(define tile-normal (compose (cube-face-normal cube) tile-face))
+(define tile-position (cube-tile-position cube))
+(define tile-rotation (compose (cube-face-rotation cube) tile-face))
+(define tile-center (cube-tile-center cube))
+(define tile-vertices (cube-tile-vertices cube))
 
+(define permutation (cube-tile-face cube))
 (define face-color (curry vector-ref rubik-colors))
 (define (tile-color n)
-  (face-color (vector-ref faces n)))
-
-(define tiles (make-tiles vertex-count))
-
-(define normal (curry vector-ref (vector-map tile-normal tiles)))
-(define position (curry vector-ref (vector-map tile-position tiles)))
+  (face-color (permutation n)))
 
 (define (spin-tiles! in-spin? rotate)
-  (let* ([tile-range (range (vector-length tiles))]
-         [post-spin (post-spin-tile rotate normal position)]
-         [permutation (post-spin-permutation tile-range in-spin? post-spin)])
-    (set! faces (list->vector
-                 (map (curry vector-ref faces)
-                      permutation)))))
+  (let* ([post-spin (post-spin-tile rotate tile-normal tile-position)]
+         [perm (post-spin-permutation tile-range in-spin? post-spin)])
+    (set! permutation (curry vector-ref
+                             (list->vector
+                              (map permutation
+                                   perm))))))
 
 (define frame
   (new frame%
@@ -88,11 +85,11 @@
    (fl* (fl (/ (- (vector-ref v 0) (/ display-width 2)) display-width scale)) (exact->inexact (/ display-width display-height)))
    (fl (/ (- (vector-ref v 1) (/ display-height 2)) display-height scale))))
 
-(define (closest-tile tiles event)
+(define (closest-tile tile-range event)
   (let ([v (mouse-to-sphere (rotation) event)])
-    (argmin (λ (t)
-              (flvector3-distance-squared (quaternion-vector-product (tile-rotation t) v) (tile-center-vertex t)))
-            tiles)))
+    (argmin (λ (n)
+              (flvector3-distance-squared (quaternion-vector-product (tile-rotation n) v) (tile-center n)))
+            tile-range)))
 
 (define (neighbouring-tiles tile)
   (define (neighbours? t)
@@ -102,7 +99,7 @@
             0)
         (discrete-vector-distance (tile-position t)
                                   (tile-position tile))))
-  (filter neighbours? (vector->list tiles)))
+  (filter neighbours? tile-range))
 
 (define (rotation-axis a b)
   (if (equal? (tile-normal a)
@@ -124,28 +121,27 @@
     (screen-to-viewport (vector (send event get-x)
                                 (send event get-y))))))
 
-(define (rotate-tile tile)
+(define (rotate-tile n)
   (let ([m (quaternion->matrix3 (quaternion-product 
-                                 (if (in-current-spin? tile)
+                                 (if (in-current-spin? n)
                                      (quaternion-product (rotation) spin-rotation)
                                      (rotation))
-                                 (quaternion-inverse (tile-rotation tile))))])
+                                 (quaternion-inverse (tile-rotation n))))])
     (curry matrix3-vector3-product m)))
 
 (define update-vertices
   (thunk
    (set-top-tile!)
-   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices tiles tile-color vertex-count) top-tile rotate-tile))))
+   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices cube tile-color vertex-count) top-tile rotate-tile))))
 
 (define (set-top-tile!)
   (letrec ([rec (λ (n)
                   (if (= n (* 6 9))
                       #f
-                      (let* ([tile (vector-ref tiles n)]
-                             [rotate (rotate-tile tile)])
-                        (if (and (fl< 0.8 (flvector-ref (rotate (tile-center-vertex tile)) 2))
+                      (let* ([rotate (rotate-tile n)])
+                        (if (and (fl< 0.8 (flvector-ref (rotate (tile-center n)) 2))
                                  (point-in-polygon? (flvector 0.0 0.0 0.0)
-                                                    (vector-map rotate (tile-edge-vertices tile))))
+                                                    (vector-map rotate (tile-vertices n))))
                             n
                             (rec (+ n 1))))))])
     (set! top-tile (rec 0))))
@@ -212,7 +208,7 @@
        (when (or (not mouse-button)
                  (eq? mouse-button 'left))
          (set! mouse-button 'left)
-         (set! mouse-down-tile (closest-tile (vector->list tiles) event))))
+         (set! mouse-down-tile (closest-tile tile-range event))))
      
      (define (on-right-mouse-down event)
        (set! mouse-button 'right)
@@ -254,7 +250,7 @@
                             [finished? (thunk (<= time (elapsed-time)))]
                             [on-finish (thunk
                                         (send t stop)
-                                        (spin-tiles! (compose in-rotation? (curry vector-ref tiles))
+                                        (spin-tiles! in-rotation?
                                                      (curry discrete-matrix-vector-product (discrete-rotation-matrix axis 1)))
                                         (set! in-current-spin? (thunk* #f))
                                         (set! animating? #f)
@@ -291,7 +287,7 @@
 (send canvas with-gl-context (thunk (set-gl-index-buffer! 'top-tile-indices
                                                           (make-tile-indices vertex-count))))
 
-(send canvas with-gl-context (thunk (make-tile-buffers tiles vertex-count)
+(send canvas with-gl-context (thunk (make-tile-buffers cube vertex-count)
                                     (update-vertices)))
 
 (send frame maximize #t)
