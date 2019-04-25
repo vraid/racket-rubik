@@ -132,7 +132,12 @@
 (define update-vertices
   (thunk
    (set-top-tile!)
-   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices cube tile-color vertex-count) top-tile rotate-tile))))
+   (set-gl-vertex-buffer! 'tile-vertices ((updated-vertices cube tile-color vertex-count)
+                                          top-tile
+                                          (λ (n)
+                                            (let ([rotate (rotate-tile n)])
+                                              (compose stereographic-projection
+                                                       rotate)))))))
 
 (define (set-top-tile!)
   (letrec ([rec (λ (n)
