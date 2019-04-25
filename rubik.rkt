@@ -9,12 +9,13 @@
          "color.rkt"
          "geometry.rkt"
          "spin.rkt"
+         "adjacency.rkt"
          "polygon.rkt"
          "stereographic-projection.rkt"
          "opengl.rkt"
          "render.rkt")
 
-(define vertex-count 16)
+(define vertex-count 32)
 
 (define current-rotation (quaternion-identity))
 (define next-rotation (quaternion-identity))
@@ -62,6 +63,9 @@
 (define (tile-color n)
   (face-color (permutation n)))
 
+(define closest
+  (closest-tile tile-center tile-rotation))
+
 (define (spin-tiles! in-spin? rotate)
   (let* ([post-spin (post-spin-tile rotate tile-normal tile-position)]
          [perm (post-spin-permutation tile-range in-spin? post-spin)])
@@ -84,22 +88,6 @@
   (flvector
    (fl* (fl (/ (- (vector-ref v 0) (/ display-width 2)) display-width scale)) (exact->inexact (/ display-width display-height)))
    (fl (/ (- (vector-ref v 1) (/ display-height 2)) display-height scale))))
-
-(define (closest-tile tile-range event)
-  (let ([v (mouse-to-sphere (rotation) event)])
-    (argmin (λ (n)
-              (flvector3-distance-squared (quaternion-vector-product (tile-rotation n) v) (tile-center n)))
-            tile-range)))
-
-(define (neighbouring-tiles tile)
-  (define (neighbours? t)
-    (>= (if (equal? (tile-normal t)
-                    (tile-normal tile))
-            1
-            0)
-        (discrete-vector-distance (tile-position t)
-                                  (tile-position tile))))
-  (filter neighbours? tile-range))
 
 (define (rotation-axis a b)
   (if (equal? (tile-normal a)
@@ -213,7 +201,8 @@
        (when (or (not mouse-button)
                  (eq? mouse-button 'left))
          (set! mouse-button 'left)
-         (set! mouse-down-tile (closest-tile tile-range event))))
+         (let ([v (mouse-to-sphere (rotation) event)])
+           (set! mouse-down-tile (closest tile-range v)))))
      
      (define (on-right-mouse-down event)
        (set! mouse-button 'right)
@@ -223,8 +212,10 @@
        (set! mouse-button #f))
      
      (define (on-left-mouse-up event)
-       (when (eq? mouse-button 'left)
-         (let* ([t (closest-tile (neighbouring-tiles mouse-down-tile) event)]
+       (when (and mouse-down-tile (eq? mouse-button 'left))
+         (let* ([adjacent ((adjacent-tiles tile-range tile-normal tile-position) mouse-down-tile)]
+                [v (mouse-to-sphere (rotation) event)]
+                [t (closest adjacent v)]
                 [normal (tile-normal t)])
            (unless (or animating?
                        (eq? t mouse-down-tile))
