@@ -24,24 +24,26 @@
    (flcolor->byte (flcolor-blue color))
    (flcolor->byte (flcolor-alpha color))))
 
-(define origo (flvector 0.0 0.0 0.0))
+(define origin (flvector 0.0 0.0 0.0))
 (define black (flcolor 0.0 0.0 0.0 0.0))
 
 (define zero-vertex
-  (->gl-vertex origo black))
+  (->gl-vertex origin black))
 
 (define (make-tile-buffers cube vertex-count)
-  (let* ([tile-vertex-count (+ 1 (* 4 vertex-count))]
-         [vertices (make-cvector _gl-vertex (* 6 9 tile-vertex-count))]
-         [indices (make-cvector _uint (* 6 9 3 4 vertex-count))])
+  (let* ([tile-vertex-count (* 4 vertex-count)]
+         [total-vertex-count (+ 1 tile-vertex-count)]
+         [vertices (make-cvector _gl-vertex (* (length (cube-tile-range cube))
+                                               total-vertex-count))]
+         [indices (make-cvector _uint (* 3 (length (cube-tile-range cube)) tile-vertex-count))])
     (for ([n (cube-tile-range cube)])
-      (cvector-set! vertices (* n tile-vertex-count) zero-vertex)
-      (for ([i (* 4 vertex-count)])
-        (cvector-set! vertices (+ 1 i (* n tile-vertex-count)) zero-vertex)
-        (let ([k (+ (* i 3) (* n 3 4 vertex-count))])
-          (cvector-set! indices k (* n tile-vertex-count))
-          (cvector-set! indices (+ 1 k) (+ 1 (modulo i (* 4 vertex-count)) (* n tile-vertex-count)))
-          (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 vertex-count)) (* n tile-vertex-count)))))
+      (cvector-set! vertices (* n total-vertex-count) zero-vertex)
+      (for ([i tile-vertex-count])
+        (cvector-set! vertices (+ 1 i (* n total-vertex-count)) zero-vertex)
+        (let ([k (+ (* i 3) (* n 3 tile-vertex-count))])
+          (cvector-set! indices k (* n total-vertex-count))
+          (cvector-set! indices (+ 1 k) (+ 1 (modulo i tile-vertex-count) (* n total-vertex-count)))
+          (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) tile-vertex-count) (* n total-vertex-count)))))
       (set-gl-vertex-buffer! 'tile-vertices vertices)
       (set-gl-index-buffer! 'tile-indices indices))))
 
@@ -53,41 +55,50 @@
     vectors))
 
 (define (make-tile-indices vertex-count)
-  (let ([indices (make-cvector _uint (* 12 vertex-count))])
-    (for ([i (* 4 vertex-count)])
+  (let* ([tile-vertex-count (* 4 vertex-count)]
+         [indices (make-cvector _uint (* 3 tile-vertex-count))])
+    (for ([i tile-vertex-count])
       (let ([k (+ (* i 3))])
         (cvector-set! indices k 0)
-        (cvector-set! indices (+ 1 k) (+ 1 (modulo i (* 4 vertex-count))))
-        (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) (* 4 vertex-count))))))
+        (cvector-set! indices (+ 1 k) (+ 1 (modulo i tile-vertex-count)))
+        (cvector-set! indices (+ 2 k) (+ 1 (modulo (+ i 1) tile-vertex-count)))))
     indices))
+
+(define (((set-vertices! vertices) color) index vec)
+  (cvector-set! vertices
+                index
+                (->gl-vertex vec color)))
 
 (define ((updated-vertices cube tile-color vertex-count) top-tile projection)
   (let* ([tile-vertex-count (+ 1 (* 4 vertex-count))]
          [vertices (gl-buffer-data (get-gl-buffer 'tile-vertices))]
+         [set-vertex! (set-vertices! vertices)]
          [tile-center (cube-tile-center cube)]
          [tile-vertices (cube-tile-vertices cube)])
     (when top-tile
       (let* ([vertices (gl-buffer-data (get-gl-buffer 'top-tile-vertices))]
-             [project (projection top-tile)])
+             [set-vertex! ((set-vertices! vertices) black)]
+             [project (projection top-tile)]
+             [tile-vertices (tile-vertices top-tile)])
         (for ([i (* 4 vertex-count)])
-          (cvector-set! vertices (+ 1 i) (->gl-vertex (let ([v (project (vector-ref (tile-vertices top-tile) i))])
-                                                        (if (or (nan? (flvector-ref v 0))
-                                                                (nan? (flvector-ref v 1)))
-                                                            (project (vector-ref (tile-vertices top-tile) (modulo (+ 1 i) (* 4 vertex-count))))
-                                                            v))
-                                                      black)))
+          (set-vertex! (+ 1 i)
+                       (let ([v (project (vector-ref tile-vertices i))])
+                         (if (or (nan? (flvector-ref v 0))
+                                 (nan? (flvector-ref v 1)))
+                             (project (vector-ref tile-vertices (modulo (+ 1 i) (* 4 vertex-count))))
+                             v))))
         (set-gl-vertex-buffer! 'top-tile-vertices vertices)))
-    (for ([n (* 6 9)])
-      (let* ([color (tile-color n)])
+    (for ([n (cube-tile-range cube)])
+      (let* ([offset (* n tile-vertex-count)]
+             [color (tile-color n)]
+             [set-vertex! (set-vertex! color)])
         (if (eq? n top-tile)
             (for ([i tile-vertex-count])
-              (cvector-set! vertices (+ i (* n tile-vertex-count)) (->gl-vertex origo
-                                                                                color)))
-            (let ([project (projection n)])
+              (set-vertex! (+ offset i) origin))
+            (let* ([project (projection n)]
+                   [tile-vertices (tile-vertices n)])
               (begin
-                (cvector-set! vertices (* n tile-vertex-count) (->gl-vertex (project (tile-center n))
-                                                                            color))
+                (set-vertex! offset (project (tile-center n)))
                 (for ([i (* 4 vertex-count)])
-                  (cvector-set! vertices (+ (* n tile-vertex-count) 1 i) (->gl-vertex (project (vector-ref (tile-vertices n) i))
-                                                                                      color))))))))
+                  (set-vertex! (+ offset i 1) (project (vector-ref tile-vertices i)))))))))
     vertices))
