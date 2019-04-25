@@ -1,17 +1,19 @@
-#lang racket
-
-(provide (all-defined-out))
+#lang typed/racket
 
 (require racket/flonum)
 
+(provide (all-defined-out))
+
+(: stereographic-projection (-> FlVector FlVector))
 (define (stereographic-projection v)
   (let ([x (flvector-ref v 0)]
         [y (flvector-ref v 1)]
-        [z (flvector-ref v 2)])
-    (flvector (fl/ x (fl- 1.0 z))
-              (fl/ y (fl- 1.0 z))
+        [scale (fl/ 1.0 (fl- 1.0 (flvector-ref v 2)))])
+    (flvector (fl* scale x)
+              (fl* scale y)
               0.0)))
 
+(: inverse-stereographic-projection (-> FlVector FlVector))
 (define (inverse-stereographic-projection v)
   (let* ([x (flvector-ref v 0)]
          [y (flvector-ref v 1)]
